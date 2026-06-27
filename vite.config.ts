@@ -2,10 +2,12 @@ import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Minimal config. `base: "./"` keeps asset paths relative so the build works
-// when served from any path and as an installed PWA.
+// Base path. Local dev/preview serve from root ("/"); the GitHub Pages workflow
+// sets BASE_PATH="/<repo>/" so emitted asset URLs are absolute and resolve under
+// the project-site subpath regardless of trailing slash. (Relative "./" breaks on
+// Pages when the URL has no trailing slash or the SW controls a deep path.)
 export default defineConfig({
-  base: "./",
+  base: process.env.BASE_PATH || "/",
   plugins: [
     svelte(),
     VitePWA({
@@ -30,9 +32,9 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: "Schedule",
-        short_name: "Schedule",
-        description: "Your daily routine, on the hour.",
+        name: "Business Management Suite",
+        short_name: "Business",
+        description: "Schedule, HR directory, and budget tools for a small team.",
         start_url: "./",
         scope: "./",
         display: "standalone",

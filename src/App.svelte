@@ -55,6 +55,12 @@
   // Keep the public company directory (config.json) fresh across devices.
   $effect(() => startConfigSync());
 
+  // Tab title follows the company name from the directory once it loads.
+  $effect(() => {
+    const name = $orgConfig.company?.name?.trim();
+    document.title = name || "Business Management Suite";
+  });
+
   // Access gate decision. Once the config has resolved: if it carries a PII
   // section, the app stays gated until unlocked — but a remembered password on a
   // device *without* biometric unlocks silently (no prompt). With biometric

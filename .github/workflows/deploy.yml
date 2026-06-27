@@ -30,7 +30,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # Build under the project-site subpath, e.g. "/business-management-suite/",
+      # so asset URLs resolve correctly on GitHub Pages.
       - run: npm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

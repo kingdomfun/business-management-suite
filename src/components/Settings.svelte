@@ -62,10 +62,10 @@
 </script>
 
 <div class="card">
-  <h3>Your schedule</h3>
+  <h3 style="text-align:center">Your schedule</h3>
   <div class="set-row">
     <div class="set-label">
-      <div>I am</div>
+      <div>Employee profile</div>
       <div class="muted hint">
         {#if employees.length}
           Pick yourself to use your assigned schedule

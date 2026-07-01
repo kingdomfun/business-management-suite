@@ -1,10 +1,7 @@
 {
-  "version": 4,
+  "version": 1,
   "updatedAt": "2026-06-27T12:00:00.000Z",
-  "pii": {
-    "salt": "VDZzhe5uzfre3U7iv1Y-Zg",
-    "verifier": "enc:v1:qiuYwqjayApaCZzA:dwsJ7uSDqYWHZgE1b6rQ4H0YeFOb0BDNyp4tZEDuow"
-  },
+  "setupComplete": false,
   "company": {
     "name": "Default Company Name",
     "registrationNumber": "",
@@ -23,14 +20,14 @@
     "currency": "$",
     "taxReservePct": 20,
     "reserves": [
-      { "key": "tools", "label": "Maintenance Fund", "pct": 1.0 },
-      { "key": "infra", "label": "Future Fund", "pct": 1.5 },
-      { "key": "education", "label": "Training Fund", "pct": 0.5 },
-      { "key": "mutualAid", "label": "Insurance Fund", "pct": 1.5 },
+      { "key": "maintenance", "label": "Maintenance Fund", "pct": 1.0 },
+      { "key": "future", "label": "Future Fund", "pct": 1.5 },
+      { "key": "training", "label": "Training Fund", "pct": 0.5 },
+      { "key": "insurance", "label": "Insurance Fund", "pct": 1.5 },
       { "key": "emergency", "label": "Emergency Buffer", "pct": 0.5 }
     ],
     "roleMultipliers": { "manager": 2, "senior": 1.5, "general": 1 },
-    "estMonthlyIncome": 50000,
+    "estMonthlyIncome": 0,
     "estMonthlyVendor": 0
   },
   "defaultTemplateId": "software",
@@ -38,7 +35,7 @@
   "employees": [
     {
       "id": "owner",
-      "name": "Your Name",
+      "name": "Default User",
       "role": "manager",
       "email": "",
       "phone": "",

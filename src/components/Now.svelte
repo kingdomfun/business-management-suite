@@ -21,6 +21,11 @@
   // else the device's assigned work template.
   let template = $derived(effectiveTemplate($appState, $orgConfig, now));
   let isPersonal = $derived(template.id === PERSONAL_TEMPLATE_ID);
+  // Until the user picks who they are (Settings → "I am"), a work schedule is just
+  // the company default — prompt them to identify first. Holidays + personal
+  // off-hours schedules don't depend on an employee identity, so they still show.
+  let needsIdentity = $derived(!$appState.myEmployeeId);
+  let hasEmployees = $derived(($orgConfig.employees?.length ?? 0) > 0);
   let view = $derived(holiday ? null : nowView(template, $appState, now));
   // The 4 PM block plans for tomorrow; its fields write to tomorrow's blocks.
   let tomorrowKey = $derived(dateKey(nextDay(now)));
@@ -54,6 +59,21 @@
     <div class="holiday-emoji">🎉</div>
     <div class="holiday-name">{holiday.name}</div>
     <p class="muted">Enjoy your day off — no schedule today.</p>
+  </div>
+{:else if needsIdentity && !isPersonal}
+  <div class="card">
+    <h3 style="margin-top:0;text-align:center">Who are you?</h3>
+    {#if hasEmployees}
+      <p class="muted" style="margin-bottom:0">
+        To see your schedule, open <b>Settings</b> and choose yourself under
+        <b>“I am”</b>. Your assigned schedule will then appear here.
+      </p>
+    {:else}
+      <p class="muted" style="margin-bottom:0">
+        No team members have been added yet. A manager needs to add employees in the
+        Management tool before you can pick yourself under <b>Settings → “I am”</b>.
+      </p>
+    {/if}
   </div>
 {:else if view}
   <div class="card now-card" class:flash>

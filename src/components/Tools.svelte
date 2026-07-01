@@ -1,21 +1,43 @@
 <script lang="ts">
   import { state as appState } from "../lib/state";
   import { tools, openToolId } from "../lib/tools";
+  import { orgConfig } from "../lib/config";
+  import { unlockedLocks, pendingLock } from "../lib/locks";
+  import type { ToolLock } from "../lib/types";
   import Icon from "./Icon.svelte";
   import AdminGate from "./AdminGate.svelte";
+  import LockGate from "./LockGate.svelte";
 
   let gateFor = $state<string | null>(null); // tool id awaiting admin unlock
+  let lockGateFor = $state<{ id: string; lock: ToolLock } | null>(null);
   let open = $derived(tools.find((t) => t.id === $openToolId) ?? null);
   let unlocked = $derived($appState.manage.signedIn);
 
+  /** The lock still guarding a tool (null = openable), reactive to config + unlocks. */
+  function guard(id: string): ToolLock | null {
+    return pendingLock($orgConfig, id, unlocked, $unlockedLocks);
+  }
+
   function select(id: string, admin: boolean) {
-    if (admin && !unlocked) gateFor = id;
-    else openToolId.set(id);
+    if (admin && !unlocked) {
+      gateFor = id;
+      return;
+    }
+    const lock = guard(id);
+    if (lock) {
+      lockGateFor = { id, lock };
+      return;
+    }
+    openToolId.set(id);
   }
   function onCloseGate() {
     // Fires on both success and cancel — only open the tool if actually unlocked.
     if (gateFor && $appState.manage.signedIn) openToolId.set(gateFor);
     gateFor = null;
+  }
+  function onCloseLock(unlockedOk: boolean) {
+    if (unlockedOk && lockGateFor) openToolId.set(lockGateFor.id);
+    lockGateFor = null;
   }
 </script>
 
@@ -36,7 +58,7 @@
 {:else}
   <div class="card">
     {#each tools as t (t.id)}
-      {@const locked = !!t.meta.admin && !unlocked}
+      {@const locked = (!!t.meta.admin && !unlocked) || !!guard(t.id)}
       <div
         class="tool-item"
         role="button"
@@ -63,6 +85,10 @@
 
 {#if gateFor}
   <AdminGate onClose={onCloseGate} />
+{/if}
+
+{#if lockGateFor}
+  <LockGate lock={lockGateFor.lock} onClose={onCloseLock} />
 {/if}
 
 <style>

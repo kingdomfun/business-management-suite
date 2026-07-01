@@ -66,8 +66,8 @@
 
 <!-- 1) Total company funds + reserve breakdown, accumulated from logged months. -->
 <div class="card">
-  <h3 style="margin:0">{$orgConfig.company.name || "Business"}</h3>
-  <div class="muted card-sub">Reserve funds on hand</div>
+  <h3 style="margin:0;text-align:center">{$orgConfig.company.name || "Business"}</h3>
+  <div class="muted card-sub" style="text-align:center">Reserve funds on hand</div>
   {#if held.months > 0}
     <div class="held-total">{money(fin, held.total)}</div>
     <div class="held-sub muted">total cash held across {held.months} logged {held.months === 1 ? "month" : "months"}</div>

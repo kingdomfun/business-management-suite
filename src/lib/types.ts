@@ -89,7 +89,7 @@ export interface PersonalSchedule {
   wakeAlarm?: { enabled: boolean; time: string };
 }
 
-/** Admin gate state — whether management tools are unlocked (see lib/auth.ts). */
+/** Admin gate state — whether management tools are unlocked (see AdminGate.svelte). */
 export interface ManageAuth {
   signedIn: boolean;
 }
@@ -104,23 +104,33 @@ export type WorkerRole = "manager" | "senior" | "general";
  */
 export interface Employee {
   id: string;
+  /**
+   * Display name. Like the contact fields, it's ENCRYPTED-at-rest and blanked
+   * while the directory is locked; decrypted once the access password is entered.
+   */
   name: string;
   role: WorkerRole;
   /**
-   * Contact fields. Stored ENCRYPTED-at-rest in config.json ("enc:v1:…" blobs)
+   * Private fields. Stored ENCRYPTED-at-rest in config.json ("enc:v1:…" blobs)
    * because that file is public; they're decrypted for display once the user
    * enters the shared access password. See lib/crypto.ts + lib/access.ts. May
    * also be plaintext in legacy configs (decryptField passes those through).
    */
   email?: string;
   phone?: string;
-  /** Id of the schedule template management assigned to this person. */
-  templateId?: string;
   /**
-   * A bespoke schedule for this person, set by management instead of a built-in
-   * template. When present it takes precedence over templateId.
+   * Schedule assignment — RUNTIME only. The schedule is private, so at rest it's
+   * encrypted into `sched` (below) rather than published in plaintext; config.ts
+   * decrypts it back into these two fields. `customSchedule` (when present) takes
+   * precedence over `templateId`.
    */
+  templateId?: string;
   customSchedule?: { blocks: Block[] };
+  /**
+   * AT-REST only: the encrypted JSON of `{ templateId?, customSchedule? }`. Absent
+   * at runtime (config.ts expands it back into the two fields above on unlock).
+   */
+  sched?: string;
   /** Optional public profile links, label -> url (e.g. { linkedin, github }). */
   links?: Record<string, string>;
 }
@@ -166,11 +176,46 @@ export interface FinanceConfig {
  * The shared, public org directory fetched from a static config.json. Managers
  * publish it; every device reads it without a login. See lib/config.ts.
  */
+/**
+ * A password that unlocks one or more tools for a scoped user/role — e.g. a
+ * finance officer who may open a Payroll tool but nothing else. Same PBKDF2 +
+ * AES-GCM verifier scheme as `pii`. NOTE: this is a client-side gate (a
+ * deterrent), not real authentication — see lib/locks.ts / Tools.svelte.
+ */
+export interface ToolLock {
+  /** Stable unique id. */
+  id: string;
+  /** Display name for the role/person, e.g. "Finance Officer". */
+  label: string;
+  /** Registry tool ids (filename without .svelte) this password unlocks. */
+  tools: string[];
+  /** PBKDF2 salt (public). */
+  salt: string;
+  /** Encrypted known-token to verify a typed password (see lib/crypto.ts). */
+  verifier: string;
+}
+
+/** App-access config: the manager contact for access requests + tool locks. */
+export interface AccessConfig {
+  /** Manager email shown on the gate's "forgot password / request access". */
+  managerEmail?: string;
+  /** Per-tool password locks. */
+  locks?: ToolLock[];
+}
+
 export interface OrgConfig {
   /** Bumped on every publish so clients can detect new info. */
   version: number;
   /** ISO timestamp of the last publish (display only). */
   updatedAt?: string;
+  /**
+   * True once a manager has published from this app at least once. Drives the
+   * first-run setup screen: a fresh fork ships this false with no `pii`, so the
+   * first person is prompted to sign in with a GitHub token and configure things.
+   * A config that already has `pii` is treated as set up even if this is absent
+   * (backward compatibility). See App.svelte.
+   */
+  setupComplete?: boolean;
   /**
    * PII encryption parameters. `salt` (public) seeds the PBKDF2 key derived from
    * the shared access password; `verifier` is an encrypted known-token used to
@@ -186,6 +231,8 @@ export interface OrgConfig {
   defaultTemplateId?: string;
   /** Company-wide days off. */
   holidays?: Holiday[];
+  /** Manager contact + per-tool password locks. */
+  access?: AccessConfig;
 }
 
 /** One month's actual income/expense entry, logged in the reporting tool. */

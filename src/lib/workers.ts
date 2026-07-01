@@ -12,9 +12,20 @@ export const ROLE_LABEL: Record<WorkerRole, string> = {
 
 const rank: Record<WorkerRole, number> = { manager: 0, senior: 1, general: 2 };
 
-/** Employees sorted managers → senior → general, then alphabetically by name. */
+/** The owner (seed employee id "owner") always sorts first, above other managers. */
+function ownerFirst(e: Employee): number {
+  return e.id === "owner" ? -1 : 0;
+}
+
+/**
+ * Employees sorted owner → managers → senior ("veterans") → general ("standard"),
+ * then alphabetically by name.
+ */
 export function sortWorkers(employees: Employee[]): Employee[] {
   return [...employees].sort(
-    (a, b) => rank[a.role] - rank[b.role] || a.name.localeCompare(b.name)
+    (a, b) =>
+      ownerFirst(a) - ownerFirst(b) ||
+      rank[a.role] - rank[b.role] ||
+      a.name.localeCompare(b.name)
   );
 }

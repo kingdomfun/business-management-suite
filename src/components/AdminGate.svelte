@@ -1,6 +1,6 @@
 <script lang="ts">
   import { adminUnlock } from "../lib/state";
-  import { verifyPassword } from "../lib/auth";
+  import { getPat, setPat, looksLikePat, validatePat } from "../lib/github";
   import {
     isBiometricSupported,
     hasBiometric,
@@ -10,25 +10,39 @@
 
   let { onClose }: { onClose: () => void } = $props();
 
-  let password = $state("");
+  let pat = $state("");
   let error = $state("");
   let busy = $state(false);
-  // After a correct password we offer to enrol the device biometric.
+  // After a valid token we offer to enrol the device biometric for next time.
   let offerEnrol = $state(false);
+  let showHelp = $state(false);
 
-  const canBiometric = isBiometricSupported() && hasBiometric();
+  // Biometric quick-unlock only makes sense once a token is already saved on this
+  // device — the biometric re-authorises showing the tools, it doesn't recreate
+  // the token. Enrolment is offered on any device that supports it but hasn't yet.
+  const canBiometric = isBiometricSupported() && hasBiometric() && !!getPat();
   const canEnrol = isBiometricSupported() && !hasBiometric();
 
-  async function tryPassword() {
-    busy = true;
-    error = "";
-    const ok = await verifyPassword(password);
-    busy = false;
-    password = "";
-    if (!ok) {
-      error = "Incorrect password.";
+  async function tryPat() {
+    const value = pat.trim();
+    if (!looksLikePat(value)) {
+      error = "That doesn't look like a GitHub token (starts with github_pat_ or ghp_).";
       return;
     }
+    busy = true;
+    error = "";
+    const { ok, reason } = await validatePat(value);
+    if (!ok) {
+      busy = false;
+      pat = "";
+      error = reason ?? "GitHub rejected this token.";
+      return;
+    }
+    // Store it here so the Publish section is pre-filled and nothing has to be
+    // re-entered. Possession of the token is the real write authority.
+    setPat(value);
+    busy = false;
+    pat = "";
     if (canEnrol) offerEnrol = true; // unlock after the enrol choice
     else finish();
   }
@@ -67,13 +81,16 @@
   {#if offerEnrol}
     <h3>Enable quick unlock?</h3>
     <p class="muted" style="margin-top:0;font-size:.85rem">
-      Use this device's fingerprint or Face ID next time instead of the password.
+      Use this device's fingerprint or Face ID next time instead of pasting the token.
     </p>
     <button class="primary" disabled={busy} onclick={enrol}>Enable biometric</button>
     <button disabled={busy} onclick={finish}>Skip</button>
   {:else}
     <h3>Admin sign-in</h3>
-    <p class="muted" style="margin-top:0;font-size:.85rem">Management tools are locked.</p>
+    <p class="muted" style="margin-top:0;font-size:.85rem">
+      Management tools unlock with your GitHub access token — the same token that
+      publishes the directory. It's stored on this device only.
+    </p>
 
     {#if canBiometric}
       <button class="primary" disabled={busy} onclick={unlockBiometric} style="width:100%">
@@ -82,18 +99,43 @@
       <div class="gate-or">or</div>
     {/if}
 
-    <label for="admin-pw">Admin password</label>
-    <input
-      id="admin-pw"
-      type="password"
-      bind:value={password}
-      onkeydown={(e) => e.key === "Enter" && tryPassword()}
-      placeholder="••••••••"
-    />
+    <div class="pat-row">
+      <label for="admin-pat">Token</label>
+      <input
+        id="admin-pat"
+        type="password"
+        autocomplete="off"
+        bind:value={pat}
+        onkeydown={(e) => e.key === "Enter" && tryPat()}
+        placeholder="github_pat_…"
+      />
+      <button type="button" class="whats" onclick={() => (showHelp = !showHelp)}>What's this?</button>
+    </div>
+
+    {#if showHelp}
+      <div class="help">
+        <p style="margin:0 0 6px">
+          A <b>fine-grained personal access token</b> lets you publish the company
+          directory straight from your phone — no separate login.
+        </p>
+        <ol style="margin:0 0 6px;padding-left:18px">
+          <li>Open <b>Settings → Developer settings → Fine-grained tokens</b>.</li>
+          <li><b>Generate new token</b>, Repository access: <b>only this repo</b>.</li>
+          <li>Permissions: <b>Contents → Read and write</b>.</li>
+          <li>Copy the <code>github_pat_…</code> value and paste it above.</li>
+        </ol>
+        <a
+          href="https://github.com/settings/personal-access-tokens/new"
+          target="_blank"
+          rel="noopener noreferrer">Create a token on GitHub ↗</a
+        >
+      </div>
+    {/if}
+
     <div style="height:10px"></div>
     <div class="row-actions">
       <button onclick={onClose}>Cancel</button>
-      <button class="primary" disabled={busy || !password} onclick={tryPassword}>
+      <button class="primary" disabled={busy || !pat} onclick={tryPat}>
         {busy ? "Checking…" : "Unlock"}
       </button>
     </div>
@@ -123,5 +165,44 @@
     color: var(--muted);
     font-size: 0.8rem;
     margin: 10px 0;
+  }
+  .pat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pat-row label {
+    flex: 0 0 auto;
+  }
+  .pat-row input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .whats {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent, #6aa3ff);
+    font-size: 0.78rem;
+    cursor: pointer;
+    text-decoration: underline;
+    width: auto;
+  }
+  .help {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--surface-2, #1a1d24);
+    border-radius: 10px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .help code {
+    font-size: 0.75rem;
+  }
+  .help a {
+    color: var(--accent, #6aa3ff);
+    font-size: 0.8rem;
   }
 </style>

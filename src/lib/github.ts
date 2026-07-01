@@ -68,6 +68,30 @@ export function hasGitHubConfig(): boolean {
   return !!(getPat() && t.owner && t.repo && t.path);
 }
 
+/** Looks like a GitHub PAT (fine-grained `github_pat_…` or classic `ghp_…`). */
+export function looksLikePat(pat: string): boolean {
+  return /^(github_pat_|ghp_)/.test(pat.trim());
+}
+
+/**
+ * Check a token is live before we trust it as the admin gate. Calls the
+ * authenticated-user endpoint (works for any valid token regardless of repo
+ * scope). Only a definitive 401 rejects — everything else (including offline)
+ * passes, since the real repo-scoped check happens at publish time and we don't
+ * want a transient error or a strictly-scoped token to lock the manager out.
+ */
+export async function validatePat(pat: string): Promise<{ ok: boolean; reason?: string }> {
+  try {
+    const res = await fetch("https://api.github.com/user", { headers: headers(pat.trim()), cache: "no-cache" });
+    if (res.status === 401) {
+      return { ok: false, reason: "GitHub rejected this token (401). Check it was pasted whole and hasn't expired." };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: true }; // offline — publish will validate for real
+  }
+}
+
 // ---- Contents API -----------------------------------------------------------
 
 /** Base64-encode a UTF-8 string (btoa is latin1-only, so encode bytes first). */

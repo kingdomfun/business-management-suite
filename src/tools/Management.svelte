@@ -13,7 +13,8 @@
   import { state as appState, saveReport, removeReport } from "../lib/state";
   import { orgConfig } from "../lib/config";
   import { piiKey, setupAccess } from "../lib/access";
-  import { encryptField } from "../lib/crypto";
+  import { encryptField, deriveKey, makeVerifier, newSalt } from "../lib/crypto";
+  import { tools as allTools } from "../lib/tools";
   import {
     getPat,
     setPat,
@@ -25,7 +26,7 @@
   import { financeOf, computeBreakdown, money } from "../lib/finance";
   import { TEMPLATES, templateById } from "../lib/templates";
   import { toMinutes } from "../lib/schedule";
-  import type { Block, Employee, FinanceConfig, Holiday, OrgConfig, PlanTarget, ReserveItem, WorkerRole } from "../lib/types";
+  import type { AccessConfig, Block, Employee, FinanceConfig, Holiday, OrgConfig, PlanTarget, ReserveItem, WorkerRole } from "../lib/types";
 
   // Managers edit a local draft, then publish it as config.json. Everything here
   // is public data — no secrets. Locally, "publish" = save the JSON to
@@ -71,6 +72,67 @@
   }
   function removeHoliday(i: number) {
     holidays = holidays.filter((_, idx) => idx !== i);
+  }
+
+  // ---- Access: manager contact + per-tool password locks ---------------------
+  // managerEmail is shown on the gate's "forgot password / request access". Locks
+  // password-protect non-admin tools for a scoped user (e.g. a finance officer).
+  let managerEmail = $state(start.access?.managerEmail ?? "");
+
+  // Only non-admin tools are lockable (admin tools already need the manager token).
+  const lockableTools = allTools.filter((t) => !t.meta.admin);
+
+  interface EditLock {
+    id: string;
+    label: string;
+    tools: string[];
+    salt: string;
+    verifier: string;
+    newPw: string; // typed to set/change the password; blank keeps the current one
+  }
+  let locks = $state<EditLock[]>(
+    (start.access?.locks ?? []).map((l) => ({
+      id: l.id,
+      label: l.label,
+      tools: [...l.tools],
+      salt: l.salt,
+      verifier: l.verifier,
+      newPw: "",
+    }))
+  );
+
+  function addLock() {
+    const id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    locks = [...locks, { id, label: "", tools: [], salt: "", verifier: "", newPw: "" }];
+  }
+  function removeLock(i: number) {
+    locks = locks.filter((_, idx) => idx !== i);
+  }
+  function toggleLockTool(i: number, toolId: string) {
+    locks = locks.map((l, idx) =>
+      idx === i
+        ? { ...l, tools: l.tools.includes(toolId) ? l.tools.filter((t) => t !== toolId) : [...l.tools, toolId] }
+        : l
+    );
+  }
+  /** Derive salt+verifier from the typed password so only the verifier is stored. */
+  async function setLockPassword(i: number) {
+    const pw = locks[i].newPw.trim();
+    if (!pw) return;
+    const salt = newSalt();
+    const key = await deriveKey(pw, salt);
+    const verifier = await makeVerifier(key);
+    locks = locks.map((l, idx) => (idx === i ? { ...l, salt, verifier, newPw: "" } : l));
+  }
+  /** Build the access block for publishing (only locks with a password + tools). */
+  function buildAccess(): AccessConfig | undefined {
+    const access: AccessConfig = {};
+    if (managerEmail.trim()) access.managerEmail = managerEmail.trim();
+    const outLocks = locks
+      .filter((l) => l.label.trim() && l.tools.length && l.salt && l.verifier)
+      .map((l) => ({ id: l.id, label: l.label.trim(), tools: [...l.tools], salt: l.salt, verifier: l.verifier }));
+    if (outLocks.length) access.locks = outLocks;
+    return Object.keys(access).length ? access : undefined;
   }
 
   // Finance / budget policy (drives the Business tab + reporting tool). Bound to
@@ -245,6 +307,7 @@
 
   // Build the next config.json. Bumps version so clients detect the update.
   function buildConfig(): OrgConfig {
+    const access = buildAccess();
     const social: Record<string, string> = {};
     if (discord.trim()) social.discord = discord.trim();
     if (telegram.trim()) social.telegram = telegram.trim();
@@ -262,6 +325,8 @@
     return {
       version: nextVersion,
       updatedAt: new Date().toISOString(),
+      // Publishing from here means a manager is set up (has a valid token).
+      setupComplete: true,
       company: {
         name: name.trim(),
         registrationNumber: reg.trim() || undefined,
@@ -275,6 +340,7 @@
         .filter((h) => h.date && h.name)
         .sort((a, b) => a.date.localeCompare(b.date)),
       employees,
+      ...(access ? { access } : {}),
     };
   }
 
@@ -306,16 +372,31 @@
     throw new Error("Set a team access password to encrypt contact details.");
   }
 
-  /** The config to actually publish — phone/email encrypted, pii block added. */
+  /** The config to actually publish — name/contacts/schedule encrypted, pii added. */
   async function buildPublishConfig(): Promise<OrgConfig> {
     const base = buildConfig();
     const { key, salt, verifier } = await resolveKey();
     const employees = await Promise.all(
-      base.employees.map(async (e) => ({
-        ...e,
-        email: e.email ? await encryptField(key, e.email) : undefined,
-        phone: e.phone ? await encryptField(key, e.phone) : undefined,
-      }))
+      base.employees.map(async (e) => {
+        // Rebuild the at-rest employee: id/role/links stay public; name + contacts
+        // are encrypted in place; the schedule is bundled into an encrypted `sched`
+        // blob (no plaintext templateId/customSchedule is published).
+        const out: Employee = {
+          id: e.id,
+          role: e.role,
+          name: e.name ? await encryptField(key, e.name) : e.name,
+          email: e.email ? await encryptField(key, e.email) : undefined,
+          phone: e.phone ? await encryptField(key, e.phone) : undefined,
+        };
+        if (e.links) out.links = e.links;
+        if (e.templateId || e.customSchedule) {
+          out.sched = await encryptField(
+            key,
+            JSON.stringify({ templateId: e.templateId, customSchedule: e.customSchedule })
+          );
+        }
+        return out;
+      })
     );
     return { ...base, pii: { salt, verifier }, employees };
   }
@@ -329,8 +410,14 @@
   function previewConfig(): OrgConfig {
     const base = buildConfig();
     const hasKey = !!get(piiKey) || !!accessPw.trim();
-    const mask = (v?: string) => (v ? (hasKey ? "🔒 encrypted on publish" : "⚠ needs access password") : undefined);
-    const employees = base.employees.map((e) => ({ ...e, email: mask(e.email), phone: mask(e.phone) }));
+    const tag = hasKey ? "🔒 encrypted on publish" : "⚠ needs access password";
+    const mask = (v?: string) => (v ? tag : undefined);
+    const employees = base.employees.map((e) => {
+      const masked: Employee = { id: e.id, role: e.role, name: tag, email: mask(e.email), phone: mask(e.phone) };
+      if (e.links) masked.links = e.links;
+      if (e.templateId || e.customSchedule) masked.sched = tag;
+      return masked;
+    });
     return { ...base, pii: { salt: "…", verifier: "…" }, employees };
   }
   let json = $derived(JSON.stringify(previewConfig(), null, 2));
@@ -560,22 +647,91 @@
 </div>
 
 <div class="card">
-  <details>
-    <summary>Publish</summary>
-
-    <div class="sublabel">Team access password</div>
-    <p class="muted note" style="margin:4px 0 0">
-      Contact details are encrypted with this. Leave blank to keep the current one;
-      fill it to set or change it — share it with the team out-of-band, never commit it.
+  <details open={!get(orgConfig).pii}>
+    <summary>Access gate password</summary>
+    <p class="muted note" style="margin:8px 0 0">
+      The shared password your team enters once to open the app — it also encrypts
+      contact details in the published file. {get(orgConfig).pii
+        ? "One is already set. Leave blank to keep it; fill it to change it (everyone will need the new one)."
+        : "Set one to turn on the team gate."}
+      Changing it re-encrypts all contacts on the next Publish. Share it out-of-band; never commit it.
     </p>
     <input
       type="password"
       autocomplete="new-password"
-      placeholder={get(orgConfig).pii ? "Unchanged — fill only to rotate" : "Set the team access password"}
+      placeholder={get(orgConfig).pii ? "Unchanged — fill only to set/change it" : "Set the access gate password"}
       bind:value={accessPw}
     />
+    {#if accessPw.trim()}
+      <p class="muted note" style="margin:6px 0 0;color:var(--accent,#6aa3ff)">
+        New password takes effect when you Publish below.
+      </p>
+    {/if}
+  </details>
+</div>
 
-    <div class="sublabel" style="margin-top:14px">Publish to GitHub</div>
+<div class="card">
+  <details>
+    <summary>Tool access &amp; locks</summary>
+    <p class="muted note" style="margin-top:8px">
+      A contact email for the sign-in screen's <b>Forgot password</b>, plus optional
+      passwords that protect individual tools for a scoped user — e.g. a finance
+      officer who can open a Payroll tool but nothing else. <b>Deterrent only</b>
+      (client-side gate); managers with the token bypass every lock.
+    </p>
+
+    <label for="mgr-email">Manager email <span class="muted" style="font-weight:400">· for access requests</span></label>
+    <input id="mgr-email" type="email" autocomplete="email" placeholder="you@company.com" bind:value={managerEmail} />
+
+    <div class="sublabel" style="margin-top:14px">Tool locks</div>
+    {#if lockableTools.length === 0}
+      <p class="muted note">No lockable tools are installed.</p>
+    {/if}
+    {#each locks as lock, i (lock.id)}
+      <div class="cblock">
+        <div class="reserve">
+          <input type="text" aria-label="Role name {i + 1}" placeholder="Role / user (e.g. Finance Officer)" bind:value={lock.label} />
+          <button class="sq" title="Remove role" aria-label="Remove role" onclick={() => removeLock(i)}>✕</button>
+        </div>
+        <div class="clabel">Tools this password unlocks</div>
+        <div class="toolpick">
+          {#each lockableTools as t (t.id)}
+            <label class="chk">
+              <input type="checkbox" checked={lock.tools.includes(t.id)} onchange={() => toggleLockTool(i, t.id)} />
+              {t.meta.name}
+            </label>
+          {/each}
+        </div>
+        <div class="reserve" style="margin-top:6px">
+          <input
+            type="password"
+            autocomplete="new-password"
+            aria-label="Password for {lock.label || 'role'}"
+            placeholder={lock.verifier ? "Password set — type to change" : "Set a password"}
+            bind:value={lock.newPw}
+          />
+          <button onclick={() => setLockPassword(i)} disabled={!lock.newPw.trim()}>Set</button>
+        </div>
+        <p class="muted note" style="margin:4px 0 0">
+          {#if lock.newPw.trim()}
+            Click <b>Set</b> to apply this password, then Publish.
+          {:else if lock.verifier}
+            Password set ✓ · takes effect on Publish.
+          {:else}
+            <span style="color:#e57373">No password yet — this role won't be saved.</span>
+          {/if}
+        </p>
+      </div>
+    {/each}
+    <button class="add-link" onclick={addLock}>+ Add role / lock</button>
+  </details>
+</div>
+
+<div class="card">
+  <details>
+    <summary>Publish</summary>
+
+    <div class="sublabel">Publish to GitHub</div>
     <p class="muted note" style="margin:4px 0 0">
       Commits <code>config.json</code> straight to your repo via a fine-grained token
       (Contents: read+write, this repo only). The token is stored on this device only.
@@ -857,6 +1013,23 @@
     font-size: 0.78rem;
     color: var(--muted);
     margin-top: 2px;
+  }
+  .toolpick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 2px;
+  }
+  .chk {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    margin-top: 0;
+  }
+  .chk input {
+    width: auto;
+    margin: 0;
   }
   .cblock textarea {
     width: 100%;

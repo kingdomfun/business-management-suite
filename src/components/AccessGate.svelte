@@ -1,8 +1,19 @@
 <script lang="ts">
-  // Full-screen access gate. Nothing else in the app renders until the shared
-  // access password (or device biometric) unlocks it. The password derives the
-  // key that decrypts employee contact details from the public config.json.
-  import { unlock, verifyPassword, savedPassword } from "../lib/access";
+  // Full-screen access gate. Nothing else in the app renders until it's cleared.
+  //
+  // Two ways in:
+  //   • Team member — the shared access password (or device biometric). It derives
+  //     the key that decrypts employee contact details from the public config.json.
+  //   • Manager setup — a GitHub access token (PAT). This is the bootstrap path for
+  //     a freshly-forked app: the seed config.json carries a pii block whose password
+  //     the forker can't know, so a manager signs in with their token instead, then
+  //     sets their own access-gate password from the management tools. Signing in
+  //     this way opens the app with PII still locked (no password yet) — that's
+  //     expected until they publish a config with their own password.
+  import { unlock, verifyPassword, savedPassword, openWithoutGate } from "../lib/access";
+  import { adminUnlock } from "../lib/state";
+  import { getPat, setPat, looksLikePat, validatePat } from "../lib/github";
+  import { orgConfig } from "../lib/config";
   import {
     isBiometricSupported,
     hasBiometric,
@@ -10,8 +21,31 @@
     verifyBiometric,
   } from "../lib/biometric";
 
-  // salt + verifier come from the published config.json (config.pii).
-  let { salt, verifier }: { salt: string; verifier: string } = $props();
+  // salt + verifier come from the published config.json (config.pii); absent in
+  // first-run `setup` mode, where there's no access password to check yet.
+  let {
+    salt = "",
+    verifier = "",
+    setup = false,
+  }: { salt?: string; verifier?: string; setup?: boolean } = $props();
+
+  // svelte-ignore state_referenced_locally
+  let mode = $state<"password" | "admin" | "request">(setup ? "admin" : "password");
+
+  // Access-request ("forgot password") state — emails the manager for the password.
+  let requesterName = $state("");
+  let managerEmail = $derived($orgConfig.access?.managerEmail?.trim() ?? "");
+
+  function sendRequest() {
+    const company = $orgConfig.company?.name?.trim() || "the app";
+    const subject = `Access request — ${company}`;
+    const body =
+      `Hi,\n\nCould you share the access password for ${company}` +
+      (requesterName.trim() ? `?\n\nName: ${requesterName.trim()}\n` : `?\n`);
+    location.href =
+      `mailto:${encodeURIComponent(managerEmail)}` +
+      `?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
 
   let password = $state("");
   let error = $state("");
@@ -21,9 +55,18 @@
   let offerEnrol = $state(false);
   let pending = ""; // the validated password held until enrol choice / commit
 
+  // Manager-setup (PAT) mode.
+  let pat = $state("");
+  let showHelp = $state(false);
+
   const saved = savedPassword();
   const canBiometric = isBiometricSupported() && hasBiometric() && !!saved;
   const canEnrol = isBiometricSupported() && !hasBiometric();
+
+  function switchMode(next: "password" | "admin" | "request") {
+    mode = next;
+    error = "";
+  }
 
   /** Commit the unlock with the validated password (derives + holds the key). */
   async function commit() {
@@ -68,6 +111,32 @@
     await registerBiometric("access");
     await commit();
   }
+
+  /** Manager bootstrap: validate + save the PAT, unlock admin, open the app. */
+  async function tryPat() {
+    const value = pat.trim();
+    if (!looksLikePat(value)) {
+      error = "That doesn't look like a GitHub token (starts with github_pat_ or ghp_).";
+      return;
+    }
+    busy = true;
+    error = "";
+    const { ok, reason } = await validatePat(value);
+    if (!ok) {
+      busy = false;
+      pat = "";
+      error = reason ?? "GitHub rejected this token.";
+      return;
+    }
+    setPat(value);
+    adminUnlock();
+    openWithoutGate(); // opens the app; PII stays locked until a password is set
+  }
+
+  /** First-run only: enter the app as a plain viewer without setting anything up. */
+  function continueAsViewer() {
+    openWithoutGate();
+  }
 </script>
 
 <div class="gate-screen">
@@ -82,6 +151,80 @@
       </button>
       <div style="height:8px"></div>
       <button disabled={busy} onclick={commit} style="width:100%">Skip</button>
+    {:else if mode === "admin"}
+      <h3 style="margin-top:0">{setup ? "Set up this app" : "Manager setup"}</h3>
+      <p class="muted" style="margin-top:0;font-size:.85rem">
+        {setup
+          ? "First time here? Sign in with your GitHub access token to configure the app. Team members can continue without setting up."
+          : "Sign in with your GitHub access token to set this app up. Afterwards, set an access-gate password for your team from the management tools."}
+      </p>
+
+      <div class="lbl-row">
+        <label for="access-pat">GitHub access token</label>
+        <button type="button" class="link" onclick={() => (showHelp = !showHelp)}>What's this?</button>
+      </div>
+      <input
+        id="access-pat"
+        type="password"
+        autocomplete="off"
+        bind:value={pat}
+        onkeydown={(e) => e.key === "Enter" && pat && tryPat()}
+        placeholder="github_pat_…"
+      />
+
+      {#if showHelp}
+        <div class="help">
+          <p style="margin:0 0 6px">
+            A <b>fine-grained personal access token</b> lets you publish the directory
+            straight from your phone — no separate login.
+          </p>
+          <ol style="margin:0 0 6px;padding-left:18px">
+            <li>Open <b>Settings → Developer settings → Fine-grained tokens</b>.</li>
+            <li><b>Generate new token</b>, Repository access: <b>only this repo</b>.</li>
+            <li>Permissions: <b>Contents → Read and write</b>.</li>
+            <li>Copy the <code>github_pat_…</code> value and paste it above.</li>
+          </ol>
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">
+            Create a token on GitHub ↗
+          </a>
+        </div>
+      {/if}
+
+      <div style="height:10px"></div>
+      <button class="primary" disabled={busy || !pat} onclick={tryPat} style="width:100%">
+        {busy ? "Checking…" : "Sign in"}
+      </button>
+      <div style="height:8px"></div>
+      {#if setup}
+        <button disabled={busy} onclick={continueAsViewer} style="width:100%">
+          Continue without signing in
+        </button>
+      {:else}
+        <button disabled={busy} onclick={() => switchMode("password")} style="width:100%">
+          Back
+        </button>
+      {/if}
+    {:else if mode === "request"}
+      <h3 style="margin-top:0">Request access</h3>
+      {#if managerEmail}
+        <p class="muted" style="margin-top:0;font-size:.85rem">
+          Email your manager to ask for the access password. Add your name so they
+          know who's asking.
+        </p>
+        <label for="req-name">Your name</label>
+        <input id="req-name" type="text" bind:value={requesterName} placeholder="Your name" />
+        <div style="height:10px"></div>
+        <button class="primary" onclick={sendRequest} style="width:100%">
+          Email {managerEmail}
+        </button>
+      {:else}
+        <p class="muted" style="margin-top:0;font-size:.85rem">
+          No manager contact is set for this app yet. Ask your manager directly for the
+          access password.
+        </p>
+      {/if}
+      <div style="height:8px"></div>
+      <button onclick={() => switchMode("password")} style="width:100%">Back</button>
     {:else}
       <h3 style="margin-top:0">Enter access password</h3>
       <p class="muted" style="margin-top:0;font-size:.85rem">
@@ -109,6 +252,11 @@
       <button class="primary" disabled={busy || !password} onclick={tryPassword} style="width:100%">
         {busy ? "Checking…" : "Unlock"}
       </button>
+
+      <div class="links">
+        <button type="button" class="link" onclick={() => switchMode("request")}>Forgot password?</button>
+        <button type="button" class="link" onclick={() => switchMode("admin")}>First time setup</button>
+      </div>
     {/if}
 
     {#if error}<p class="muted" style="color:#e57373;font-size:.8rem;margin-bottom:0">{error}</p>{/if}
@@ -136,5 +284,42 @@
     color: var(--muted);
     font-size: 0.8rem;
     margin: 10px 0;
+  }
+  .lbl-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent, #6aa3ff);
+    font-size: 0.78rem;
+    cursor: pointer;
+    text-decoration: underline;
+    width: auto;
+  }
+  .links {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .help {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--surface-2, #1a1d24);
+    border-radius: 10px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .help code {
+    font-size: 0.75rem;
+  }
+  .help a {
+    color: var(--accent, #6aa3ff);
+    font-size: 0.8rem;
   }
 </style>

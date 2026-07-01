@@ -5,6 +5,7 @@ import {
   employeeTemplate,
   resolveTemplate,
   effectiveTemplate,
+  alarmTemplate,
   personalTemplate,
   PERSONAL_TEMPLATE_ID,
   CUSTOM_TEMPLATE_ID,
@@ -120,6 +121,32 @@ describe("effectiveTemplate", () => {
     const config = cfg({ holidays: [{ date: "2026-06-22", name: "Founders Day" }] });
     const t = effectiveTemplate(s, config, monWork);
     expect(t.blocks.length).toBe(0);
+  });
+});
+
+describe("alarmTemplate", () => {
+  function state(over: Partial<AppState> = {}): AppState {
+    return { ...defaultState(), ...over };
+  }
+  const withMe = cfg({
+    defaultTemplateId: "office",
+    employees: [{ id: "e1", name: "Ada", role: "general" }],
+  });
+
+  it("fires no work-schedule alarms until an employee is selected", () => {
+    const s = state(); // no myEmployeeId
+    expect(alarmTemplate(s, withMe, monWork).blocks.length).toBe(0);
+  });
+
+  it("uses the work schedule once an employee is selected", () => {
+    const s = state({ myEmployeeId: "e1" });
+    expect(alarmTemplate(s, withMe, monWork).id).toBe("office");
+  });
+
+  it("still fires the personal off-hours schedule without an employee", () => {
+    const s = state();
+    s.personal.enabled = true;
+    expect(alarmTemplate(s, cfg(), saturday).id).toBe(PERSONAL_TEMPLATE_ID);
   });
 });
 

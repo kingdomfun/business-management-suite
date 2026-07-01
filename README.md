@@ -1,14 +1,22 @@
 # Business Management Tool
 
-A phone-first **business management** PWA for a small team: a live daily schedule,
-an HR directory, a revenue/wage budget model, and a set of work tools — all in one
-small Svelte app. No backend and no app store; the shared company data syncs
-through a single `config.json` in a public repo, and everything else lives
-on-device.
+An all-in-one app for running a small team from your phone: everyone sees their own
+daily schedule, a shared staff directory, and a simple budget/pay overview — plus
+handy tools like a project board and calculator. Team members just open a link:
+nothing to install and no account to create. A manager keeps everything up to date
+and it syncs out to everyone automatically.
 
-**Stack:** Svelte 5 + Vite + TypeScript, installable PWA (`vite-plugin-pwa`),
-local-first (one JSON object in `localStorage`), serverless share links
-(`lz-string` in the URL hash). Production bundle ≈ 55 KB gzipped (JS) + ≈ 4 KB CSS.
+Add it to your phone's home screen and it behaves like a normal app, even offline.
+It's **free and open-source**, so you can run your own copy for your company — see
+**Set up your own copy** below.
+
+Under the hood it's a lightweight web app (a PWA built with Svelte) with **no server
+or database to run**: the shared company info lives in one small file the manager
+publishes, and everything personal stays on your own device.
+
+<p align="center">
+  <img src="biz-tool.jpg" alt="Business Management Tool running on a phone" width="320">
+</p>
 
 ---
 
@@ -32,7 +40,7 @@ Footer tabs: **Focus · Schedule · Tools · HR · Business · Settings**.
   itemised reserve funds → worker wage pool split by role multiplier. Log monthly
   actuals to switch projections to real figures; a "reserve funds on hand" total
   accumulates across logged months. Dependency-free SVG donut + breakdown.
-- **Settings** — device identity ("I am"), off-hours/weekend schedule + daily wake
+- **Settings** — your employee profile (who this device is), off-hours/weekend schedule + daily wake
   alarm, notification permission / sound / alert style / Focus hours, admin
   lock, and reset.
 
@@ -73,8 +81,7 @@ src/
     config.ts       fetch/cache the shared config.json; decrypt PII view
     access.ts       app access gate state + the live PII decryption key
     crypto.ts       PBKDF2 + AES-GCM encrypt/decrypt for PII fields
-    github.ts       per-manager PAT + Contents API publish of config.json
-    auth.ts         admin password gate (SHA-256)
+    github.ts       per-manager PAT — admin gate + Contents API publish of config.json
     biometric.ts    WebAuthn platform-authenticator unlock (Face ID / fingerprint)
     workers.ts      role ordering / labels
     share.ts        encode/decode a read-only schedule snapshot + detail levels
@@ -108,21 +115,24 @@ Pages workflow is described below.
 </details>
 
 <details>
-<summary><b>Deploy to GitHub Pages</b></summary>
+<summary><b>Set up your own copy (deploy to GitHub Pages)</b></summary>
 
 A workflow at [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
 builds the PWA and publishes it on every push to `main`. One-time setup:
 
-1. Push this repo to GitHub.
-2. **Settings → Pages → Build and deployment → Source → GitHub Actions.**
+1. Push this repo to GitHub. **The repo must be public** — free GitHub Pages only
+   serves public repos. (To keep it private, deploy the same `dist/` to Cloudflare
+   Pages or Netlify instead — both serve from a private repo for free.)
+2. **Settings → Pages → Build and deployment → Source → GitHub Actions.** Not
+   *"Deploy from a branch"* — that serves the repo's dev `index.html`
+   (`<script src="/src/main.ts">`) and renders a blank page.
 3. Push to `main` (or run it manually via **Actions → Deploy to GitHub Pages → Run
    workflow**). The site goes live at `https://<user>.github.io/<repo>/`.
 
-No config changes are needed for a project site: Vite's `base: "./"` and the
-manifest's `start_url`/`scope: "./"` are relative, and `config.json` is fetched
-relative to the page — so everything resolves correctly under the `/<repo>/` path.
-Routing is hash-based (`#s=…` share links), so there's no SPA 404 fallback to
-worry about.
+The workflow builds with `BASE_PATH=/<repo>/` so asset URLs resolve under the
+project-site subpath. Routing is hash-based (`#s=…` share links), so there's no SPA
+404 fallback to worry about, and the Actions deploy path skips Jekyll, so no
+`.nojekyll` is needed.
 
 **It ties into publishing:** when a manager uses the in-app **Publish** button, it
 commits `public/config.json` to `main`, which triggers this workflow to rebuild and
@@ -139,27 +149,46 @@ company info, the employee list, finance/wage policy, schedule assignments,
 holidays. Every device fetches it read-only (network-first, cached for offline,
 re-checked every ~5 min), so non-managers get updates with **no login**.
 
+### First-run setup
+
+A freshly forked + deployed app ships **unconfigured** (`config.json` has
+`setupComplete: false` and no `pii`). The first screen offers **manager setup** —
+sign in with a fine-grained GitHub token (the same one used to publish, below) to
+unlock the tools; team members can tap **Continue without signing in** to browse.
+Once a manager publishes, the config is stamped `setupComplete: true` and every
+device behaves normally from then on.
+
 ### Access gate (shared password)
 
-The whole app sits behind a **shared access password** that every team member is
-told *out-of-band* (never committed). On first launch they enter it once; it's
-saved to the device and can be replaced by **biometric** (Face ID / fingerprint,
-via WebAuthn) on later launches.
+A manager can put the whole app behind a **shared access password** (Management →
+**Access gate password**) that team members are told *out-of-band* (never
+committed). On first launch they enter it once; it's saved to the device and can be
+replaced by **biometric** (Face ID / fingerprint, via WebAuthn) on later launches.
+The sign-in screen also has:
 
-> **Default access password: `company1234`.** Change it before real use:
-> Management → **Publish → Team access password** → set a new one, then publish.
-> (The shipped `public/config.json` carries the `pii` salt + verifier for this
-> default.)
+- **Forgot password** — emails the manager to request the password (set the
+  contact address in Management → **Tool access & locks → Manager email**).
+- **First time setup** — a manager without the password (e.g. on a new device) can
+  get in with their GitHub token instead.
 
-### Why the password matters: PII encryption
+### Why the password matters: staff-info encryption
 
-`config.json` is meant to live in a **public** repo, so employee **phone and email
-are encrypted at rest** (AES-GCM, key derived from the access password via
-PBKDF2-SHA256; see `src/lib/crypto.ts`). Everything else (names, roles, revenue,
-wage multipliers) is public plaintext. The encryption only protects PII from the
-*general public* — anyone with the access password can decrypt, by design. The
-password is **never** stored in the repo; if it were, it'd be public alongside the
-data and the encryption would be pointless.
+`config.json` is meant to live in a **public** repo, so each employee's **name,
+phone, email, and schedule are encrypted at rest** (AES-GCM, key derived from the
+access password via PBKDF2-SHA256; see `src/lib/crypto.ts`). Only their **role** and
+company-wide figures (revenue, wage policy) stay as public plain text. The
+encryption keeps staff details away from the *general public* — anyone with the
+access password can read them, by design. The password is **never** stored in the
+repo; if it were, it'd be public alongside the data and the encryption would be
+pointless.
+
+### Locking individual tools
+
+Beyond the app-wide gate, a manager can password-protect specific tools for a
+scoped user (Management → **Tool access & locks**) — e.g. a *Finance Officer* who
+can open a payroll tool but nothing else. This is a **convenience gate, not
+bank-grade security**: the tool code is in the public app, so a technical user could
+bypass it. Managers (signed in with their token) can open every tool.
 
 </details>
 
@@ -180,9 +209,9 @@ In **Management → Publish → Publish to GitHub**:
 
 Concurrent edits are conflict-checked (a clear 409 message rather than a clobber).
 You can also **Download / Copy** the encrypted JSON and commit it manually. The
-admin password gate (`src/lib/auth.ts`, default `admin1234`) is a local UI
-deterrent that hides the management tools; the real write authority is possession
-of the GitHub token.
+management tools are unlocked by entering your **GitHub token** (validated live in
+`AdminGate`), not a separate password — the token is the real write authority, so
+there's a single secret to manage, stored on that device only.
 
 </details>
 

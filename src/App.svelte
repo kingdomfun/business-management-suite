@@ -5,7 +5,7 @@
   import { startConfigSync, configUpdated, orgConfig, configReady } from "./lib/config";
   import { unlocked, savedPassword, unlock, openWithoutGate } from "./lib/access";
   import { isBiometricSupported, hasBiometric } from "./lib/biometric";
-  import { effectiveTemplate } from "./lib/templates";
+  import { alarmTemplate } from "./lib/templates";
   import { focus, toggleFocus } from "./lib/focus";
   import { openToolId } from "./lib/tools";
   import AccessGate from "./components/AccessGate.svelte";
@@ -48,7 +48,7 @@
   $effect(() =>
     startWebScheduler(() => ({
       state: $appState,
-      template: effectiveTemplate($appState, $orgConfig, new Date()),
+      template: alarmTemplate($appState, $orgConfig, new Date()),
     }))
   );
 
@@ -61,11 +61,13 @@
     document.title = name || "Business Management Suite";
   });
 
-  // Access gate decision. Once the config has resolved: if it carries a PII
-  // section, the app stays gated until unlocked — but a remembered password on a
-  // device *without* biometric unlocks silently (no prompt). With biometric
-  // enrolled we always show the gate so the fingerprint/Face ID is required. A
-  // config with no PII section means no gate is configured → open the app.
+  // Access gate decision. Once the config has resolved:
+  //  • never configured (no setupComplete, no pii) → show the setup screen so a
+  //    manager can sign in with a token; a viewer can continue past it.
+  //  • configured with a PII section → stay gated until unlocked, but a remembered
+  //    password on a device *without* biometric unlocks silently. With biometric
+  //    enrolled we always show the gate so the fingerprint/Face ID is required.
+  //  • configured with no PII section → no gate → open the app.
   let gateReady = $state(false);
   $effect(() => {
     if (shared || !$configReady || $unlocked) {
@@ -73,6 +75,10 @@
       return;
     }
     const pii = $orgConfig.pii;
+    if (!$orgConfig.setupComplete && !pii) {
+      gateReady = true; // first-run setup screen (rendered below)
+      return;
+    }
     if (!pii) {
       openWithoutGate();
       return;
@@ -92,6 +98,8 @@
   <ShareView payload={shared} />
 {:else if !$configReady || !gateReady}
   <div class="loading"><span class="muted">Loading…</span></div>
+{:else if !$orgConfig.setupComplete && !$orgConfig.pii && !$unlocked}
+  <AccessGate setup />
 {:else if $orgConfig.pii && !$unlocked}
   <AccessGate salt={$orgConfig.pii.salt} verifier={$orgConfig.pii.verifier} />
 {:else}

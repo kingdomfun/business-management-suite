@@ -83,3 +83,15 @@ export function effectiveTemplate(state: AppState, config: OrgConfig, now: Date)
   }
   return resolveTemplate(state.myEmployeeId, config);
 }
+
+/**
+ * The template the alarm scheduler should use. Same as effectiveTemplate, except
+ * a *work* schedule fires no alarms until the device is tied to an employee
+ * (Settings → Employee profile) — otherwise every device would chime on the
+ * company-default schedule. Personal off-hours + holidays are unaffected.
+ */
+export function alarmTemplate(state: AppState, config: OrgConfig, now: Date): ScheduleTemplate {
+  const t = effectiveTemplate(state, config, now);
+  if (!state.myEmployeeId && t.id !== PERSONAL_TEMPLATE_ID) return EMPTY_TEMPLATE;
+  return t;
+}

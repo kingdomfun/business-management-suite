@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import type { OrgConfig } from "./types";
+import type { Employee, OrgConfig } from "./types";
 import { DEFAULT_FINANCE } from "./finance";
 import { piiKey } from "./access";
 import { decryptField, isEncrypted } from "./crypto";
@@ -15,7 +15,7 @@ import { decryptField, isEncrypted } from "./crypto";
 // then, encrypted fields are blanked so they never surface locked. The raw,
 // still-encrypted config is kept for managers who re-publish. See lib/crypto.ts.
 
-const CONFIG_URL = "config.json"; // relative — matches vite `base: "./"`
+const CONFIG_URL = "config.json"; // relative to the page — resolves under the /<repo>/ base on Pages
 const CACHE_KEY = "org-config-cache-v1";
 const POLL_MS = 5 * 60_000; // re-check for new info every 5 min while open
 
@@ -86,23 +86,46 @@ async function recompute(): Promise<void> {
   const key = latestKey;
 
   if (!key) {
-    // Locked: hide encrypted PII so it never shows scrambled; leave any
-    // plaintext (legacy) fields untouched.
-    const employees = c.employees.map((e) => ({
-      ...e,
-      email: isEncrypted(e.email) ? "" : e.email,
-      phone: isEncrypted(e.phone) ? "" : e.phone,
-    }));
+    // Locked: hide encrypted fields so they never show scrambled; leave any
+    // plaintext (legacy) fields untouched. The encrypted schedule blob (`sched`)
+    // is dropped and its runtime fields blanked so no schedule leaks.
+    const employees = c.employees.map((e) => {
+      const { sched, ...rest } = e;
+      return {
+        ...rest,
+        name: isEncrypted(e.name) ? "" : e.name,
+        email: isEncrypted(e.email) ? "" : e.email,
+        phone: isEncrypted(e.phone) ? "" : e.phone,
+        ...(sched ? { templateId: undefined, customSchedule: undefined } : {}),
+      };
+    });
     if (token === pass) orgConfig.set({ ...c, employees });
     return;
   }
 
   const employees = await Promise.all(
-    c.employees.map(async (e) => ({
-      ...e,
-      email: await decryptField(key, e.email),
-      phone: await decryptField(key, e.phone),
-    }))
+    c.employees.map(async (e) => {
+      const { sched, ...rest } = e;
+      const out: Employee = {
+        ...rest,
+        name: await decryptField(key, e.name),
+        email: await decryptField(key, e.email),
+        phone: await decryptField(key, e.phone),
+      };
+      if (sched) {
+        try {
+          const json = await decryptField(key, sched);
+          const parsed = json
+            ? (JSON.parse(json) as { templateId?: string; customSchedule?: Employee["customSchedule"] })
+            : {};
+          out.templateId = parsed.templateId;
+          out.customSchedule = parsed.customSchedule;
+        } catch {
+          /* bad / undecryptable blob → leave the schedule unset */
+        }
+      }
+      return out;
+    })
   );
   if (token === pass) orgConfig.set({ ...c, employees });
 }

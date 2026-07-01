@@ -98,7 +98,7 @@ describe("accumulateReserves", () => {
     const s = accumulateReserves(DEFAULT_FINANCE, reports);
     expect(s.months).toBe(2);
     // Maintenance Fund is 1% of pool: 1% of 70k + 1% of 40k = 700 + 400 = 1100
-    const maint = s.funds.find((f) => f.key === "tools")!;
+    const maint = s.funds.find((f) => f.key === "maintenance")!;
     expect(maint.label).toBe("Maintenance Fund");
     expect(maint.total).toBeCloseTo(1_100);
   });

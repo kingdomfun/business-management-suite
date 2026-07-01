@@ -98,10 +98,8 @@
   <ShareView payload={shared} />
 {:else if !$configReady || !gateReady}
   <div class="loading"><span class="muted">Loading…</span></div>
-{:else if !$orgConfig.setupComplete && !$orgConfig.pii && !$unlocked}
-  <AccessGate setup />
-{:else if $orgConfig.pii && !$unlocked}
-  <AccessGate salt={$orgConfig.pii.salt} verifier={$orgConfig.pii.verifier} />
+{:else if !$unlocked && (!$orgConfig.setupComplete || $orgConfig.pii)}
+  <AccessGate salt={$orgConfig.pii?.salt ?? ""} verifier={$orgConfig.pii?.verifier ?? ""} />
 {:else}
   {#if $configUpdated}
     <div class="banner">

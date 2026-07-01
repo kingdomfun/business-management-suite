@@ -66,12 +66,12 @@
     {#if hasEmployees}
       <p class="muted" style="margin-bottom:0">
         To see your schedule, open <b>Settings</b> and choose yourself under
-        <b>“I am”</b>. Your assigned schedule will then appear here.
+        <b>Employee profile</b>. Your assigned schedule will then appear here.
       </p>
     {:else}
       <p class="muted" style="margin-bottom:0">
         No team members have been added yet. A manager needs to add employees in the
-        Management tool before you can pick yourself under <b>Settings → “I am”</b>.
+        Management tool before you can pick yourself under <b>Settings → Employee profile</b>.
       </p>
     {/if}
   </div>

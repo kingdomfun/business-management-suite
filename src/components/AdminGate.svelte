@@ -99,18 +99,19 @@
       <div class="gate-or">or</div>
     {/if}
 
-    <div class="pat-row">
-      <label for="admin-pat">Token</label>
-      <input
-        id="admin-pat"
-        type="password"
-        autocomplete="off"
-        bind:value={pat}
-        onkeydown={(e) => e.key === "Enter" && tryPat()}
-        placeholder="github_pat_…"
-      />
+    <div class="lbl-row">
+      <label for="admin-pat">GitHub access token</label>
       <button type="button" class="whats" onclick={() => (showHelp = !showHelp)}>What's this?</button>
     </div>
+    <input
+      id="admin-pat"
+      class="big"
+      type="password"
+      autocomplete="off"
+      bind:value={pat}
+      onkeydown={(e) => e.key === "Enter" && tryPat()}
+      placeholder="github_pat_…"
+    />
 
     {#if showHelp}
       <div class="help">
@@ -166,17 +167,18 @@
     font-size: 0.8rem;
     margin: 10px 0;
   }
-  .pat-row {
+  .lbl-row {
     display: flex;
-    align-items: center;
+    align-items: baseline;
+    justify-content: space-between;
     gap: 8px;
+    margin-bottom: 6px;
   }
-  .pat-row label {
-    flex: 0 0 auto;
-  }
-  .pat-row input {
-    flex: 1 1 auto;
-    min-width: 0;
+  /* Larger, full-width token field (overrides the global input padding). */
+  .big {
+    width: 100%;
+    padding: 15px 16px;
+    font-size: 1.05rem;
   }
   .whats {
     flex: 0 0 auto;

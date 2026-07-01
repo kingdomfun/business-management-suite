@@ -1,15 +1,13 @@
 <script lang="ts">
-  // Full-screen access gate. Nothing else in the app renders until it's cleared.
+  // Full-screen access gate. One clean main view; the two links open sub-views
+  // (request access / first-time setup) that fall back with a Back button.
   //
-  // Two ways in:
-  //   • Team member — the shared access password (or device biometric). It derives
-  //     the key that decrypts employee contact details from the public config.json.
-  //   • Manager setup — a GitHub access token (PAT). This is the bootstrap path for
-  //     a freshly-forked app: the seed config.json carries a pii block whose password
-  //     the forker can't know, so a manager signs in with their token instead, then
-  //     sets their own access-gate password from the management tools. Signing in
-  //     this way opens the app with PII still locked (no password yet) — that's
-  //     expected until they publish a config with their own password.
+  //   • Sign in — the shared access password (or a saved-device biometric). It
+  //     derives the key that decrypts staff details from the public config.json.
+  //   • Continue without signing in — browse with those details left locked.
+  //   • Forgot password — email the manager to ask for the password.
+  //   • First time setup — a manager signs in with a GitHub token to configure the
+  //     app (the bootstrap path for a freshly-forked copy that has no password yet).
   import { unlock, verifyPassword, savedPassword, openWithoutGate } from "../lib/access";
   import { adminUnlock } from "../lib/state";
   import { getPat, setPat, looksLikePat, validatePat } from "../lib/github";
@@ -21,41 +19,23 @@
     verifyBiometric,
   } from "../lib/biometric";
 
-  // salt + verifier come from the published config.json (config.pii); absent in
-  // first-run `setup` mode, where there's no access password to check yet.
-  let {
-    salt = "",
-    verifier = "",
-    setup = false,
-  }: { salt?: string; verifier?: string; setup?: boolean } = $props();
+  // salt + verifier come from the published config.json (config.pii); both empty
+  // on a fresh, never-configured app (no password set yet).
+  let { salt = "", verifier = "" }: { salt?: string; verifier?: string } = $props();
 
-  // svelte-ignore state_referenced_locally
-  let mode = $state<"password" | "admin" | "request">(setup ? "admin" : "password");
-
-  // Access-request ("forgot password") state — emails the manager for the password.
-  let requesterName = $state("");
-  let managerEmail = $derived($orgConfig.access?.managerEmail?.trim() ?? "");
-
-  function sendRequest() {
-    const company = $orgConfig.company?.name?.trim() || "the app";
-    const subject = `Access request — ${company}`;
-    const body =
-      `Hi,\n\nCould you share the access password for ${company}` +
-      (requesterName.trim() ? `?\n\nName: ${requesterName.trim()}\n` : `?\n`);
-    location.href =
-      `mailto:${encodeURIComponent(managerEmail)}` +
-      `?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }
+  type View = "main" | "request" | "setup" | "enrol";
+  let view = $state<View>("main");
 
   let password = $state("");
   let error = $state("");
   let busy = $state(false);
-  // After a correct password, offer to enrol this device's biometric before we
-  // commit the unlock (committing unmounts this gate).
-  let offerEnrol = $state(false);
-  let pending = ""; // the validated password held until enrol choice / commit
+  let pending = ""; // the validated password held until the enrol choice / commit
 
-  // Manager-setup (PAT) mode.
+  // Forgot-password (email the manager) state.
+  let requesterName = $state("");
+  let managerEmail = $derived($orgConfig.access?.managerEmail?.trim() ?? "");
+
+  // First-time-setup (GitHub token) state.
   let pat = $state("");
   let showHelp = $state(false);
 
@@ -63,8 +43,8 @@
   const canBiometric = isBiometricSupported() && hasBiometric() && !!saved;
   const canEnrol = isBiometricSupported() && !hasBiometric();
 
-  function switchMode(next: "password" | "admin" | "request") {
-    mode = next;
+  function go(next: View) {
+    view = next;
     error = "";
   }
 
@@ -75,6 +55,10 @@
   }
 
   async function tryPassword() {
+    if (!verifier) {
+      error = "No access password has been set yet — use First time setup, or Continue without signing in.";
+      return;
+    }
     busy = true;
     error = "";
     const ok = await verifyPassword(password, salt, verifier);
@@ -88,7 +72,7 @@
     password = "";
     if (canEnrol) {
       busy = false;
-      offerEnrol = true;
+      go("enrol");
     } else {
       await commit();
     }
@@ -112,6 +96,22 @@
     await commit();
   }
 
+  /** Enter the app without a password — staff details stay locked. */
+  function continueAsViewer() {
+    openWithoutGate();
+  }
+
+  function sendRequest() {
+    const company = $orgConfig.company?.name?.trim() || "the app";
+    const subject = `Access request — ${company}`;
+    const body =
+      `Hi,\n\nCould you share the access password for ${company}` +
+      (requesterName.trim() ? `?\n\nName: ${requesterName.trim()}\n` : `?\n`);
+    location.href =
+      `mailto:${encodeURIComponent(managerEmail)}` +
+      `?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
   /** Manager bootstrap: validate + save the PAT, unlock admin, open the app. */
   async function tryPat() {
     const value = pat.trim();
@@ -130,48 +130,48 @@
     }
     setPat(value);
     adminUnlock();
-    openWithoutGate(); // opens the app; PII stays locked until a password is set
-  }
-
-  /** First-run only: enter the app as a plain viewer without setting anything up. */
-  function continueAsViewer() {
-    openWithoutGate();
+    openWithoutGate(); // opens the app; details stay locked until a password is set
   }
 </script>
 
 <div class="gate-screen">
   <div class="gate card">
-    {#if offerEnrol}
-      <h3>Enable quick unlock?</h3>
-      <p class="muted" style="margin-top:0;font-size:.85rem">
-        Use this device's fingerprint or Face ID next time instead of typing the password.
-      </p>
-      <button class="primary" disabled={busy} onclick={enrol} style="width:100%">
-        Enable biometric
-      </button>
+    {#if view === "enrol"}
+      <h3 class="gate-h">Enable quick unlock?</h3>
+      <p class="muted sub">Use this device's fingerprint or Face ID next time instead of the password.</p>
+      <button class="primary" disabled={busy} onclick={enrol} style="width:100%">Enable biometric</button>
       <div style="height:8px"></div>
       <button disabled={busy} onclick={commit} style="width:100%">Skip</button>
-    {:else if mode === "admin"}
-      <h3 style="margin-top:0">{setup ? "Set up this app" : "Manager setup"}</h3>
-      <p class="muted" style="margin-top:0;font-size:.85rem">
-        {setup
-          ? "First time here? Sign in with your GitHub access token to configure the app. Team members can continue without setting up."
-          : "Sign in with your GitHub access token to set this app up. Afterwards, set an access-gate password for your team from the management tools."}
-      </p>
+    {:else if view === "request"}
+      <h3 class="gate-h">Request access</h3>
+      {#if managerEmail}
+        <p class="muted sub">Email your manager to ask for the access password.</p>
+        <label for="req-name">Your name</label>
+        <input id="req-name" type="text" bind:value={requesterName} placeholder="Your name" />
+        <div style="height:10px"></div>
+        <button class="primary" onclick={sendRequest} style="width:100%">Email {managerEmail}</button>
+      {:else}
+        <p class="muted sub">No manager contact is set for this app yet. Ask your manager directly for the access password.</p>
+      {/if}
+      <div style="height:8px"></div>
+      <button disabled={busy} onclick={() => go("main")} style="width:100%">Back</button>
+    {:else if view === "setup"}
+      <h3 class="gate-h">First-time setup</h3>
+      <p class="muted sub">Managers: sign in with your GitHub token to set up and publish this app.</p>
 
       <div class="lbl-row">
-        <label for="access-pat">GitHub access token</label>
+        <label for="access-pat">Token</label>
         <button type="button" class="link" onclick={() => (showHelp = !showHelp)}>What's this?</button>
       </div>
       <input
         id="access-pat"
+        class="big"
         type="password"
         autocomplete="off"
         bind:value={pat}
         onkeydown={(e) => e.key === "Enter" && pat && tryPat()}
         placeholder="github_pat_…"
       />
-
       {#if showHelp}
         <div class="help">
           <p style="margin:0 0 6px">
@@ -195,42 +195,9 @@
         {busy ? "Checking…" : "Sign in"}
       </button>
       <div style="height:8px"></div>
-      {#if setup}
-        <button disabled={busy} onclick={continueAsViewer} style="width:100%">
-          Continue without signing in
-        </button>
-      {:else}
-        <button disabled={busy} onclick={() => switchMode("password")} style="width:100%">
-          Back
-        </button>
-      {/if}
-    {:else if mode === "request"}
-      <h3 style="margin-top:0">Request access</h3>
-      {#if managerEmail}
-        <p class="muted" style="margin-top:0;font-size:.85rem">
-          Email your manager to ask for the access password. Add your name so they
-          know who's asking.
-        </p>
-        <label for="req-name">Your name</label>
-        <input id="req-name" type="text" bind:value={requesterName} placeholder="Your name" />
-        <div style="height:10px"></div>
-        <button class="primary" onclick={sendRequest} style="width:100%">
-          Email {managerEmail}
-        </button>
-      {:else}
-        <p class="muted" style="margin-top:0;font-size:.85rem">
-          No manager contact is set for this app yet. Ask your manager directly for the
-          access password.
-        </p>
-      {/if}
-      <div style="height:8px"></div>
-      <button onclick={() => switchMode("password")} style="width:100%">Back</button>
+      <button disabled={busy} onclick={() => go("main")} style="width:100%">Back</button>
     {:else}
-      <h3 style="margin-top:0">Enter access password</h3>
-      <p class="muted" style="margin-top:0;font-size:.85rem">
-        This app is for team members. Enter the shared password to continue — it's
-        saved to this device so you only do this once.
-      </p>
+      <h3 class="gate-h">Sign in</h3>
 
       {#if canBiometric}
         <button class="primary" disabled={busy} onclick={unlockBiometric} style="width:100%">
@@ -239,27 +206,29 @@
         <div class="gate-or">or</div>
       {/if}
 
-      <label for="access-pw">Access password</label>
       <input
         id="access-pw"
+        class="big"
         type="password"
         autocomplete="current-password"
         bind:value={password}
         onkeydown={(e) => e.key === "Enter" && password && tryPassword()}
-        placeholder="••••••••"
+        placeholder="Access password"
       />
-      <div style="height:10px"></div>
-      <button class="primary" disabled={busy || !password} onclick={tryPassword} style="width:100%">
-        {busy ? "Checking…" : "Unlock"}
-      </button>
+      <div class="btn-row">
+        <button class="primary" disabled={busy || !password} onclick={tryPassword}>
+          {busy ? "Checking…" : "Sign in"}
+        </button>
+        <button disabled={busy} onclick={continueAsViewer}>Continue without signing in</button>
+      </div>
 
       <div class="links">
-        <button type="button" class="link" onclick={() => switchMode("request")}>Forgot password?</button>
-        <button type="button" class="link" onclick={() => switchMode("admin")}>First time setup</button>
+        <button type="button" class="link" onclick={() => go("request")}>Forgot password</button>
+        <button type="button" class="link" onclick={() => go("setup")}>First time setup</button>
       </div>
     {/if}
 
-    {#if error}<p class="muted" style="color:#e57373;font-size:.8rem;margin-bottom:0">{error}</p>{/if}
+    {#if error}<p class="muted err">{error}</p>{/if}
   </div>
 </div>
 
@@ -278,6 +247,29 @@
     width: var(--modal-w, 360px);
     max-width: 100%;
     margin: 0;
+  }
+  .gate-h {
+    margin: 0 0 12px;
+    text-align: center;
+  }
+  /* Larger, full-width credential fields (overrides the global input padding). */
+  .big {
+    width: 100%;
+    padding: 15px 16px;
+    font-size: 1.05rem;
+  }
+  .sub {
+    margin: 0 0 12px;
+    font-size: 0.85rem;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .btn-row button {
+    flex: 1 1 0;
+    min-width: 0;
   }
   .gate-or {
     text-align: center;
@@ -305,7 +297,12 @@
     display: flex;
     justify-content: space-between;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: 14px;
+  }
+  .err {
+    color: #e57373;
+    font-size: 0.8rem;
+    margin: 10px 0 0;
   }
   .help {
     margin-top: 8px;

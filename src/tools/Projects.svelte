@@ -129,13 +129,15 @@
 
   // ---- email progress report ----
   let showReport = $state(false);
-  let to = $state("");
   let extra = $state(""); // free-form note added to the top of the report
 
-  // Recipients with an email on file, managers first — the likely report target.
-  let recipients = $derived(
-    sortWorkers($orgConfig.employees.filter((e) => !!e.email))
-  );
+  // Everyone in the directory, sorted owner → managers → senior → general, as the
+  // dropdown of report recipients. `pick` holds the chosen email, "" (none), or
+  // "__custom__" to type an address not on file.
+  let recipients = $derived(sortWorkers($orgConfig.employees));
+  let pick = $state("");
+  let customTo = $state("");
+  let to = $derived(pick === "__custom__" ? customTo.trim() : pick);
 
   function buildReport(): string {
     if (!active) return "";
@@ -262,16 +264,19 @@
     {#if showReport}
       <div class="report">
         <label for="rep-to">Send to</label>
-        {#if recipients.length}
-          <select id="rep-to" value={to} onchange={(e) => (to = e.currentTarget.value)}>
-            <option value="" disabled>Choose a teammate…</option>
-            {#each recipients as r}
-              <option value={r.email}>{r.name} · {ROLE_LABEL[r.role]}</option>
-            {/each}
-          </select>
+        <select id="rep-to" bind:value={pick}>
+          <option value="" disabled>Choose who to email…</option>
+          {#each recipients as r (r.id)}
+            <option value={r.email ?? ""} disabled={!r.email}>
+              {r.name} · {ROLE_LABEL[r.role]}{r.email ? "" : " (no email)"}
+            </option>
+          {/each}
+          <option value="__custom__">Other email…</option>
+        </select>
+        {#if pick === "__custom__"}
           <div style="height:8px"></div>
+          <input type="email" placeholder="name@email.com" bind:value={customTo} />
         {/if}
-        <input id="rep-to-email" type="email" placeholder="manager@email.com" bind:value={to} />
 
         <div style="height:10px"></div>
         <label for="rep-extra">Add a note (optional)</label>

@@ -23,6 +23,7 @@
     publishConfig,
   } from "../lib/github";
   import { sortWorkers, ROLE_LABEL } from "../lib/workers";
+  import { unsavedChanges } from "../lib/nav";
   import { financeOf, computeBreakdown, money } from "../lib/finance";
   import { TEMPLATES, templateById } from "../lib/templates";
   import { toMinutes } from "../lib/schedule";
@@ -308,6 +309,15 @@
   // Build the next config.json. Bumps version so clients detect the update.
   function buildConfig(): OrgConfig {
     const access = buildAccess();
+    const publish =
+      ghOwner.trim() && ghRepo.trim()
+        ? {
+            owner: ghOwner.trim(),
+            repo: ghRepo.trim(),
+            path: ghPath.trim() || "public/config.json",
+            branch: ghBranch.trim() || "main",
+          }
+        : undefined;
     const social: Record<string, string> = {};
     if (discord.trim()) social.discord = discord.trim();
     if (telegram.trim()) social.telegram = telegram.trim();
@@ -341,6 +351,7 @@
         .sort((a, b) => a.date.localeCompare(b.date)),
       employees,
       ...(access ? { access } : {}),
+      ...(publish ? { publish } : {}),
     };
   }
 
@@ -450,11 +461,14 @@
   }
 
   // ---- GitHub publish (per-manager PAT, stored on this device only) ----------
+  // Prefill from this device's saved target first, then the published config's
+  // `publish` block (so a second manager inherits owner/repo), then the defaults.
   const repoStart = getRepoTarget();
-  let ghOwner = $state(repoStart.owner);
-  let ghRepo = $state(repoStart.repo);
-  let ghPath = $state(repoStart.path);
-  let ghBranch = $state(repoStart.branch);
+  const cfgPub = start.publish;
+  let ghOwner = $state(repoStart.owner || cfgPub?.owner || "");
+  let ghRepo = $state(repoStart.repo || cfgPub?.repo || "business-management-suite");
+  let ghPath = $state(repoStart.path || cfgPub?.path || "public/config.json");
+  let ghBranch = $state(repoStart.branch || cfgPub?.branch || "main");
   let ghPat = $state(getPat());
   let publishing = $state(false);
   let publishMsg = $state("");
@@ -478,13 +492,47 @@
       await publishConfig(out, "Update config.json");
       accessPw = ""; // clear after a successful rotate/publish
       publishMsg = "Published ✓ Devices pick it up within ~5 min.";
+      baselineSig = contentSig(); // published state is the new clean baseline
     } catch (e) {
       publishMsg = e instanceof Error ? e.message : "Publish failed.";
     } finally {
       publishing = false;
     }
   }
+
+  // ---- unsaved-changes tracking ----------------------------------------------
+  // A signature of the draft (minus the volatile version/updatedAt). It diverges
+  // from the baseline the moment the manager edits anything a Publish would save —
+  // including a pending access-gate password or an unset tool-lock password. App +
+  // Tools guard navigation while this is dirty (see lib/nav.ts).
+  function contentSig(): string {
+    return JSON.stringify({ ...buildConfig(), version: 0, updatedAt: "" });
+  }
+  // svelte-ignore state_referenced_locally
+  let baselineSig = $state(contentSig());
+  let dirty = $derived(
+    contentSig() !== baselineSig ||
+      accessPw.trim() !== "" ||
+      locks.some((l) => l.newPw.trim() !== "")
+  );
+  $effect(() => {
+    unsavedChanges.set(dirty);
+    return () => unsavedChanges.set(false);
+  });
 </script>
+
+{#if dirty}
+  <div class="dirty-note">
+    <span>
+      {publishMsg && !publishMsg.startsWith("Published")
+        ? publishMsg
+        : "Unsaved changes — publish to save them."}
+    </span>
+    <button class="primary" disabled={publishing} onclick={publishToGitHub}>
+      {publishing ? "Publishing…" : "Publish"}
+    </button>
+  </div>
+{/if}
 
 <div class="card">
   <details>
@@ -876,6 +924,27 @@
   .note {
     margin: 0 0 10px;
     font-size: 0.85rem;
+  }
+  /* Sticky "unsaved changes" reminder at the top of the tool. */
+  .dirty-note {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    font-size: 0.85rem;
+  }
+  .dirty-note span {
+    flex: 1;
+  }
+  .dirty-note button {
+    flex: 0 0 auto;
   }
   .actions {
     display: flex;

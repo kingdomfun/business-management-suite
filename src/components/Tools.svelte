@@ -3,6 +3,7 @@
   import { tools, openToolId } from "../lib/tools";
   import { orgConfig } from "../lib/config";
   import { unlockedLocks, pendingLock } from "../lib/locks";
+  import { requestLeave } from "../lib/nav";
   import type { ToolLock } from "../lib/types";
   import Icon from "./Icon.svelte";
   import AdminGate from "./AdminGate.svelte";
@@ -44,7 +45,7 @@
 {#if open}
   {@const Tool = open.Component}
   <div class="tool-banner">
-    <button class="tool-back" onclick={() => openToolId.set(null)}>
+    <button class="tool-back" onclick={() => requestLeave(() => openToolId.set(null))}>
       <span class="chev">‹</span> Tools
     </button>
     <span class="tool-banner-name">

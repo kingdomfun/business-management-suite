@@ -21,3 +21,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Live directory — published per-deployment via the GitHub API, not tracked.
+# A default is generated from config.example.json on dev/build (scripts/ensure-config.mjs).
+public/config.json

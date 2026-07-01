@@ -233,6 +233,12 @@ export interface OrgConfig {
   holidays?: Holiday[];
   /** Manager contact + per-tool password locks. */
   access?: AccessConfig;
+  /**
+   * Where this directory is published (owner/repo/path/branch). Saved so other
+   * managers and devices prefill the publish target. Public info — the repo hosting
+   * the config is world-readable anyway; the write token is never stored here.
+   */
+  publish?: { owner: string; repo: string; path: string; branch: string };
 }
 
 /** One month's actual income/expense entry, logged in the reporting tool. */

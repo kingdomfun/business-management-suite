@@ -1,10 +1,14 @@
 {
-  "version": 2,
-  "updatedAt": "2026-07-01T18:32:23.810Z",
+  "version": 3,
+  "updatedAt": "2026-07-01T18:34:35.633Z",
   "setupComplete": true,
   "company": {
     "name": "Kingdom Labs LLC",
-    "website": "https://kingdom.quest"
+    "website": "https://kingdom.quest",
+    "social": {
+      "telegram": "https://web.telegram.org/k/#-3219833826",
+      "github": "https://github.com/kingdomfun"
+    }
   },
   "finance": {
     "currency": "$",
@@ -50,7 +54,7 @@
     {
       "id": "owner",
       "role": "manager",
-      "name": "enc:v1:nOvoU8paurtkU_hV:avvIvfkwlkBV5g2bSQA_Eeb-VH6Bzzwdw1eAKQ",
+      "name": "enc:v1:XmHlWpq11PbMQglJ:-LylHjA8NqjKWD3c7zRX_OKexyU7boofaGtVgw",
       "links": {}
     }
   ],

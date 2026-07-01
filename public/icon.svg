@@ -1,10 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Business Management Suite">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <rect width="512" height="512" rx="112" fill="#0f1115"/>
-  <!-- ascending bar chart -->
-  <rect x="130" y="300" width="66" height="88" rx="16" fill="#6ea8fe"/>
-  <rect x="223" y="250" width="66" height="138" rx="16" fill="#6ea8fe"/>
-  <rect x="316" y="190" width="66" height="198" rx="16" fill="#4ec98a"/>
-  <!-- growth trend line + arrowhead -->
-  <path d="M156 292 L256 232 L352 168" fill="none" stroke="#e7e9ee" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M374 154 L364 186 L340 150 Z" fill="#e7e9ee"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#6ea8fe" stroke-width="28"/>
+  <line x1="256" y1="256" x2="256" y2="156" stroke="#6ea8fe" stroke-width="26" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="334" y2="256" stroke="#4ec98a" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="18" fill="#e7e9ee"/>
 </svg>

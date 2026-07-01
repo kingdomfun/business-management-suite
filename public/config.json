@@ -1,32 +1,46 @@
 {
-  "version": 1,
-  "updatedAt": "2026-06-27T12:00:00.000Z",
-  "setupComplete": false,
+  "version": 2,
+  "updatedAt": "2026-07-01T18:32:23.810Z",
+  "setupComplete": true,
   "company": {
-    "name": "Default Company Name",
-    "registrationNumber": "",
-    "website": "",
-    "social": {
-      "discord": "",
-      "telegram": "",
-      "linkedin": "",
-      "instagram": "",
-      "facebook": "",
-      "youtube": "",
-      "github": ""
-    }
+    "name": "Kingdom Labs LLC",
+    "website": "https://kingdom.quest"
   },
   "finance": {
     "currency": "$",
     "taxReservePct": 20,
     "reserves": [
-      { "key": "maintenance", "label": "Maintenance Fund", "pct": 1.0 },
-      { "key": "future", "label": "Future Fund", "pct": 1.5 },
-      { "key": "training", "label": "Training Fund", "pct": 0.5 },
-      { "key": "insurance", "label": "Insurance Fund", "pct": 1.5 },
-      { "key": "emergency", "label": "Emergency Buffer", "pct": 0.5 }
+      {
+        "key": "maintenance",
+        "label": "Maintenance Fund",
+        "pct": 1
+      },
+      {
+        "key": "future",
+        "label": "Future Fund",
+        "pct": 1.5
+      },
+      {
+        "key": "training",
+        "label": "Training Fund",
+        "pct": 0.5
+      },
+      {
+        "key": "insurance",
+        "label": "Insurance Fund",
+        "pct": 1.5
+      },
+      {
+        "key": "emergency",
+        "label": "Emergency Buffer",
+        "pct": 0.5
+      }
     ],
-    "roleMultipliers": { "manager": 2, "senior": 1.5, "general": 1 },
+    "roleMultipliers": {
+      "manager": 2,
+      "senior": 1.5,
+      "general": 1
+    },
     "estMonthlyIncome": 0,
     "estMonthlyVendor": 0
   },
@@ -35,12 +49,13 @@
   "employees": [
     {
       "id": "owner",
-      "name": "Default User",
       "role": "manager",
-      "email": "",
-      "phone": "",
-      "templateId": "",
+      "name": "enc:v1:nOvoU8paurtkU_hV:avvIvfkwlkBV5g2bSQA_Eeb-VH6Bzzwdw1eAKQ",
       "links": {}
     }
-  ]
+  ],
+  "pii": {
+    "salt": "7etbw5QQ4HD-ODbYxnGVdg",
+    "verifier": "enc:v1:L1L7M2jodIriMNSR:ycYlHT64hhb_8Emqi5zfYWTNf4ATYJTbjwJQoWf8xA"
+  }
 }

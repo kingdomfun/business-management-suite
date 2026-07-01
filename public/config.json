@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "updatedAt": "2026-07-01T18:39:11.232Z",
+  "version": 5,
+  "updatedAt": "2026-07-01T19:05:20.395Z",
   "setupComplete": true,
   "company": {
     "name": "Kingdom Labs LLC",
@@ -54,36 +54,41 @@
     {
       "id": "81db6a56-cc52-467e-9875-9c4942d5e7f5",
       "role": "senior",
-      "name": "enc:v1:H3C_tIzLREmtjhx7:lPzOMtCyd7P3MSXlLu6acYuT6KC4SGl11fG7bug"
+      "name": "enc:v1:bEs5khsQ1P4_n2ZQ:WjpEo1iyLY35tE2dBX6X8_mzeceE1LmjsU27AzI"
     },
     {
       "id": "7b283e90-fa9b-4691-b61f-679999805040",
       "role": "manager",
-      "name": "enc:v1:xzFhpLNMm0zYuCOc:yWVwc8eJPN_b3aB_UyG74occ8IpiEpzWX8nI2vfa",
-      "sched": "enc:v1:KQqvxG5ssAgTEUMl:HWXWVvoBWCUvZEI0hKjpd7bpv90KsRvlbGmxW8L-VgxkRtYYsGmxu9Idm4zE"
+      "name": "enc:v1:rUTShch2ZNK6lKGj:qYwTh5FT3lQKU3SyE26q4tn7_wCYsjYKZVyjQrSQ",
+      "sched": "enc:v1:apJnlWVicHXv4veU:KC1PW_UNJhJzDj11CEybvKdQtucNGbiKAKU0zPvi6sUjMx8o84YbO2a4tniF"
     },
     {
       "id": "7c7ec3f1-8ec4-4afa-be47-0d13934a70c6",
       "role": "general",
-      "name": "enc:v1:axLEo3jfZoiZGWU-:7RXfaobnGSZynuSli9ATJy666K3RrPgoPIuxdE0"
+      "name": "enc:v1:UzZo7G94c0NuS3KS:4TF3o6qHQjilJjbjl8uJSqvVU5xdbE4-NsHOe7I"
     },
     {
       "id": "8fa372d4-53e7-43b8-82f8-d47ea9d2025b",
       "role": "general",
-      "name": "enc:v1:JNuWCGO9z053vNT6:m_FQbVNdXqqAz-E0T3c66iS7b4DEF5R9AkzH3LrfS9c",
-      "sched": "enc:v1:qN0dIWXjYo5r8oYv:v9lbxdQ_kqusj6k0Pgnit7p3udjveEt2vfVFgGtSwocabwJXP_UpYEl0XDUk"
+      "name": "enc:v1:Zvm0JXQ8oI7Aw_pB:O4JjWEGNpCNFurYfH9CFsIxMEVBjy4ktgZTx53B6jWk",
+      "sched": "enc:v1:OK5gnUU4FdwKCtRA:RhgnkKsASJ5IRkF57Io3e3U607a_rISRqFpuvqMGy4baNAdWiMiOUSnB_mBT"
     },
     {
       "id": "b2c9bb82-4121-4dab-9df7-581a186ad15f",
       "role": "general",
-      "name": "enc:v1:gSCGvQG3lde-OKtB:ZjC-a4uRCXMYKmJC_S_OThyBI_jjGulS",
-      "sched": "enc:v1:c3SprkQOTlYhFaPZ:x34q8qkGDxEcIFxCBJBsHQy6z1uXogZ49Am_5LgGHiRsiYGI_oI977dWnqHJ"
+      "name": "enc:v1:ry6740_wnjRAD25F:GQ4rVUCxWyQ8OXnf1-nLSXXKi_4iiULk",
+      "sched": "enc:v1:gD5Wxh9nQnQzxqy2:C1mpOaeb9eHJBxHufHZzOOeaBwAQsS9MFXaTy0nRi4CU5QCpysGQCySoD1EC"
     },
     {
       "id": "9bb6ed76-353a-4710-b06a-9b13d99244c4",
       "role": "general",
-      "name": "enc:v1:_bLf8q5qP5Kfncod:SkbLdmjOiSSr6mhCpmcgtU1yuPRxwR6a-A",
-      "sched": "enc:v1:Omp4ZqP89Y4ASHEG:hCcTSol_3hy_AkFKu7WNcbv4iX_TAipn3Nde-tmn2firaToLdf8Jr5DUd4ir"
+      "name": "enc:v1:4x9NtJCvU2xXyOUl:FuabJ7ogOUq5AXmRZSaeyaMWg0mix71l7Q",
+      "sched": "enc:v1:l3q3ro92TO6Op-2Z:fyDEl1KV56-sTCkPzjvixNM5aToT7vz2Ewj0PZl5hfCBMHpNfFJebqD5UVUZ"
+    },
+    {
+      "id": "49107388-ba1c-4080-8a9e-b9e9ee319e53",
+      "role": "manager",
+      "name": "enc:v1:2esEYyvEnemIlS8S:qyAE7INtz5NSFZt82aiCVVW-ZaLtheIssCiU"
     }
   ],
   "pii": {

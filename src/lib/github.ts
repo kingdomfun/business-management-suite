@@ -24,7 +24,12 @@ export interface RepoTarget {
   branch: string;
 }
 
-const DEFAULT_TARGET: RepoTarget = { owner: "", repo: "", path: "public/config.json", branch: "main" };
+const DEFAULT_TARGET: RepoTarget = {
+  owner: "",
+  repo: "business-management-suite",
+  path: "public/config.json",
+  branch: "main",
+};
 
 // ---- device-local credential storage ----------------------------------------
 

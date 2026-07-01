@@ -8,6 +8,8 @@
   import { alarmTemplate } from "./lib/templates";
   import { focus, toggleFocus } from "./lib/focus";
   import { openToolId } from "./lib/tools";
+  import { unsavedChanges, pendingLeave, requestLeave, confirmLeave, cancelLeave } from "./lib/nav";
+  import { get } from "svelte/store";
   import AccessGate from "./components/AccessGate.svelte";
   import Now from "./components/Now.svelte";
   import HR from "./components/HR.svelte";
@@ -29,10 +31,27 @@
   let tab = $state<Tab>("now");
 
   // Tapping the Tools footer button returns to the tool list if a tool is open.
+  // Routed through the unsaved-changes guard so an open editor (Management) can
+  // prompt before its draft is discarded.
   function selectTab(key: Tab) {
-    if (key === "tools") openToolId.set(null);
-    tab = key;
+    requestLeave(() => {
+      if (key === "tools") openToolId.set(null);
+      tab = key;
+    });
   }
+
+  // Warn on a real page leave (refresh / close / hardware back out of the app)
+  // while there are unpublished edits. The in-app modal handles tab/tool navigation.
+  $effect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (get(unsavedChanges)) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  });
 
   // Footer order: Focus (rendered first, below) · Schedule · Tools · HR · Business · Settings.
   const tabs: { key: Tab; ico: string; label: string }[] = [
@@ -130,6 +149,22 @@
   </nav>
 {/if}
 
+{#if $pendingLeave}
+  <div class="leave-backdrop" role="button" tabindex="0"
+    onclick={cancelLeave} onkeydown={(e) => e.key === "Escape" && cancelLeave()}></div>
+  <div class="leave-modal card" role="dialog" aria-modal="true" aria-label="Unsaved changes">
+    <h3 style="margin-top:0">Unsaved changes</h3>
+    <p class="muted" style="margin-top:0;font-size:.9rem">
+      You've edited the directory but haven't published yet. Leave now and those
+      changes will be lost.
+    </p>
+    <div class="leave-actions">
+      <button onclick={confirmLeave}>Leave without publishing</button>
+      <button class="primary" onclick={cancelLeave}>Keep editing</button>
+    </div>
+  </div>
+{/if}
+
 <style>
   .loading {
     position: fixed;
@@ -159,5 +194,29 @@
   }
   .banner button.x {
     padding: 6px 8px;
+  }
+  .leave-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 60;
+  }
+  .leave-modal {
+    position: fixed;
+    z-index: 61;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: var(--modal-w);
+    margin: 0;
+  }
+  .leave-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .leave-actions button {
+    flex: 1 1 0;
+    min-width: 0;
   }
 </style>

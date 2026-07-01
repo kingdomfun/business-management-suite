@@ -119,27 +119,47 @@ Pages workflow is described below.
 <details>
 <summary><b>Set up your own copy (deploy to GitHub Pages)</b></summary>
 
-A workflow at [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
-builds the PWA and publishes it on every push to `main`. One-time setup:
+A workflow at [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) builds
+the PWA and publishes it on every push to `main`.
 
-1. Push this repo to GitHub. **The repo must be public** — free GitHub Pages only
-   serves public repos. (To keep it private, deploy the same `dist/` to Cloudflare
-   Pages or Netlify instead — both serve from a private repo for free.)
-2. **Settings → Pages → Build and deployment → Source → GitHub Actions.** Not
-   *"Deploy from a branch"* — that serves the repo's dev `index.html`
+**One-time setup**
+
+1. Get the code into your own GitHub repo (fork it, or create a repo and push).
+2. **If it's a fork, enable Actions.** Open the **Actions** tab and click
+   *"I understand my workflows, enable them"* — forks ship with Actions **disabled**,
+   so nothing deploys until you do this.
+3. **Settings → Pages → Build and deployment → Source → GitHub Actions.** *Not*
+   "Deploy from a branch" — that serves the repo's dev `index.html`
    (`<script src="/src/main.ts">`) and renders a blank page.
-3. Push to `main` (or run it manually via **Actions → Deploy to GitHub Pages → Run
-   workflow**). The site goes live at `https://<user>.github.io/<repo>/`.
+4. **Deploy:** push to `main`, or run it by hand via **Actions → Deploy to GitHub
+   Pages → Run workflow** (`workflow_dispatch`). The site goes live at
+   `https://<owner>.github.io/<repo>/`.
+
+**Public vs private / org repos**
+
+- **Personal public repo** — the simplest path; free Pages just works.
+- **Private repo (personal or org)** — free Pages **won't serve it**. Either make the
+  repo **public** (the app encrypts staff details precisely because the config file is
+  world-readable), upgrade to **GitHub Pro/Team**, or host the built `dist/` on
+  **Cloudflare Pages / Netlify** (both deploy a *private* repo for free; only the
+  hosting moves — the in-app publish still writes to GitHub).
+- **Org-owned repo** — publishing needs an **org-scoped token**; see *Managers:
+  publishing updates* below.
 
 The workflow builds with `BASE_PATH=/<repo>/` so asset URLs resolve under the
 project-site subpath. Routing is hash-based (`#s=…` share links), so there's no SPA
-404 fallback to worry about, and the Actions deploy path skips Jekyll, so no
-`.nojekyll` is needed.
+404 fallback, and the Actions deploy path skips Jekyll, so no `.nojekyll` is needed.
 
-**It ties into publishing:** when a manager uses the in-app **Publish** button, it
-commits `public/config.json` to `main`, which triggers this workflow to rebuild and
-redeploy. Devices pick up the new directory on their next check (~5 min). Point the
-managers' repo target at this same repo, path `public/config.json`, branch `main`.
+**Publishing ties in:** the in-app **Publish** button commits `public/config.json`
+via the GitHub API, which re-triggers this workflow; devices pick up the change on
+their next ~5-min check.
+
+**`config.json` is gitignored.** It's the live directory a manager publishes, not a
+source file, so it isn't tracked. A working default is generated from
+[`public/config.example.json`](public/config.example.json) on `npm run dev` / `build`
+(see [`scripts/ensure-config.mjs`](scripts/ensure-config.mjs)), so a fresh clone or
+fork still serves a default until the first publish — after which the published
+`config.json` (committed by the API) takes over.
 
 </details>
 
@@ -199,15 +219,30 @@ bypass it. Managers (signed in with their token) can open every tool.
 
 Reads need nothing. **Writes** use a per-manager **fine-grained GitHub token**
 stored **only on that manager's device** — never bundled (the source is public).
-In **Management → Publish → Publish to GitHub**:
 
-1. Create a fine-grained PAT: github.com → Settings → Developer settings →
-   Fine-grained tokens → *Repository access: only this repo* →
-   *Permissions: Contents = Read and write*.
-2. Enter `owner` / `repo`, the config path (default `public/config.json`), and
-   branch; paste the token and **Save token**.
-3. **Publish** — it commits `config.json` (PII encrypted) via the GitHub Contents
-   API. Devices pick it up on their next poll (~5 min).
+**Create the token** (always under *your account*, not the repo — repos have no
+"create token" option). Go to **avatar → Settings → Developer settings → Personal
+access tokens → Fine-grained tokens → Generate new token**:
+
+1. **Resource owner** — your account for a personal repo, or **the organization** if
+   the repo is org-owned.
+2. **Repository access → Only select repositories →** this repo.
+3. **Permissions → Contents → Read and write.**
+
+> **Org-owned repos:** the org must *allow* fine-grained tokens, and may require
+> approval. An org owner sets this at **Org → Settings → Third-party Access →
+> Personal access tokens**; an unapproved token stays **pending** (and won't publish)
+> until approved under *Pending requests*.
+
+**Then, in the app** — access-gate **First time setup**, or **Management → Publish →
+Publish to GitHub**:
+
+1. `owner` / `repo` (repo defaults to `business-management-suite`), config path
+   (default `public/config.json`), and branch (`main`); paste the token and
+   **Save token**. The owner/repo are also saved into the published `config.json` so
+   a second manager's device prefills them automatically.
+2. **Publish** — it commits `config.json` (staff details encrypted) via the GitHub
+   Contents API. Devices pick it up on their next poll (~5 min).
 
 Concurrent edits are conflict-checked (a clear 409 message rather than a clobber).
 You can also **Download / Copy** the encrypted JSON and commit it manually. The

@@ -1,6 +1,6 @@
 {
-  "version": 5,
-  "updatedAt": "2026-07-01T19:05:20.395Z",
+  "version": 6,
+  "updatedAt": "2026-07-01T19:36:43.082Z",
   "setupComplete": true,
   "company": {
     "name": "Kingdom Labs LLC",
@@ -54,43 +54,54 @@
     {
       "id": "81db6a56-cc52-467e-9875-9c4942d5e7f5",
       "role": "senior",
-      "name": "enc:v1:bEs5khsQ1P4_n2ZQ:WjpEo1iyLY35tE2dBX6X8_mzeceE1LmjsU27AzI"
+      "name": "enc:v1:OV4tQ4DU2l8wckWL:1d6kTsT-YpBOUs0X5yNNhCRzkeuZk8_KV-lm3jk"
     },
     {
       "id": "7b283e90-fa9b-4691-b61f-679999805040",
       "role": "manager",
-      "name": "enc:v1:rUTShch2ZNK6lKGj:qYwTh5FT3lQKU3SyE26q4tn7_wCYsjYKZVyjQrSQ",
-      "sched": "enc:v1:apJnlWVicHXv4veU:KC1PW_UNJhJzDj11CEybvKdQtucNGbiKAKU0zPvi6sUjMx8o84YbO2a4tniF"
+      "name": "enc:v1:NjdGDmz6ln1ezBoN:Jp1P8Iwowy0P0cl7ahpa31gzPBZ3hL3pmtWfHm8G",
+      "sched": "enc:v1:QFzoxatDiVrryr0y:onkVF7hkIiYciTiwVwIf4yd1BWPg8wuYODJ_sTrfVIlDQPAgMBPKdESNY7Sq"
     },
     {
       "id": "7c7ec3f1-8ec4-4afa-be47-0d13934a70c6",
       "role": "general",
-      "name": "enc:v1:UzZo7G94c0NuS3KS:4TF3o6qHQjilJjbjl8uJSqvVU5xdbE4-NsHOe7I"
+      "name": "enc:v1:kUUvqCK2nTeCKTpo:kaJb-x72p1AlWTd0HqXiBoiStYJ3QaQaci_pfls"
     },
     {
       "id": "8fa372d4-53e7-43b8-82f8-d47ea9d2025b",
       "role": "general",
-      "name": "enc:v1:Zvm0JXQ8oI7Aw_pB:O4JjWEGNpCNFurYfH9CFsIxMEVBjy4ktgZTx53B6jWk",
-      "sched": "enc:v1:OK5gnUU4FdwKCtRA:RhgnkKsASJ5IRkF57Io3e3U607a_rISRqFpuvqMGy4baNAdWiMiOUSnB_mBT"
+      "name": "enc:v1:buK9sck1wmolVEcM:FSi5AilG56miUuDpD8vusrAePn-YYLuin6VV3Zlv65c",
+      "sched": "enc:v1:otbXTsnd6zdRQdbq:SPQ_ifhuFWVjGAhmQMgNoQjQ_C7HHN8RCjN3jarWjtboggx5v0HoH8Na1UEm"
     },
     {
       "id": "b2c9bb82-4121-4dab-9df7-581a186ad15f",
       "role": "general",
-      "name": "enc:v1:ry6740_wnjRAD25F:GQ4rVUCxWyQ8OXnf1-nLSXXKi_4iiULk",
-      "sched": "enc:v1:gD5Wxh9nQnQzxqy2:C1mpOaeb9eHJBxHufHZzOOeaBwAQsS9MFXaTy0nRi4CU5QCpysGQCySoD1EC"
+      "name": "enc:v1:WCaxgreUuMTf40HV:oZOb9hWjEEJS1lK3ENkuGqzVDlXLAz7i",
+      "sched": "enc:v1:F05pXR4GtJdL8eRv:ykICa2JyEGm1xN8FREzr5VTU1wubiDqb6bH8eiyU6JqmtsMAl_Mhg_9Em2Wz"
     },
     {
       "id": "9bb6ed76-353a-4710-b06a-9b13d99244c4",
       "role": "general",
-      "name": "enc:v1:4x9NtJCvU2xXyOUl:FuabJ7ogOUq5AXmRZSaeyaMWg0mix71l7Q",
-      "sched": "enc:v1:l3q3ro92TO6Op-2Z:fyDEl1KV56-sTCkPzjvixNM5aToT7vz2Ewj0PZl5hfCBMHpNfFJebqD5UVUZ"
+      "name": "enc:v1:E6AcHZJKnffQKXWF:kWWS-z1-63aibFg2uDqqRyW6y_Lf1V8hsA",
+      "sched": "enc:v1:7Ca67VqS0QHgEm7o:jKsRUMdnfGPrz1IjRUvQ1PfKjLEua8CjrRkmAV6mzgv8s8DI7AqMDC-eLVoG"
     },
     {
       "id": "49107388-ba1c-4080-8a9e-b9e9ee319e53",
       "role": "manager",
-      "name": "enc:v1:2esEYyvEnemIlS8S:qyAE7INtz5NSFZt82aiCVVW-ZaLtheIssCiU"
+      "name": "enc:v1:_4phk3wb4rnmj8lK:gTFf15NrzHzQPALsa5Sa7GQd-rF8bIs3XMby"
+    },
+    {
+      "id": "dc3cac30-7e77-4cca-82a1-ef75bf0f07ca",
+      "role": "general",
+      "name": "enc:v1:YvSjLyGbafZXsv5a:4wgt-RSZMhP9gvVOVlRxGLR6tzsNmXl4"
     }
   ],
+  "publish": {
+    "owner": "kingdomfun",
+    "repo": "business-management-suite",
+    "path": "public/config.json",
+    "branch": "main"
+  },
   "pii": {
     "salt": "7etbw5QQ4HD-ODbYxnGVdg",
     "verifier": "enc:v1:L1L7M2jodIriMNSR:ycYlHT64hhb_8Emqi5zfYWTNf4ATYJTbjwJQoWf8xA"

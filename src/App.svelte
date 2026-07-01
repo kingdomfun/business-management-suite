@@ -9,6 +9,7 @@
   import { focus, toggleFocus } from "./lib/focus";
   import { openToolId } from "./lib/tools";
   import { unsavedChanges, pendingLeave, requestLeave, confirmLeave, cancelLeave } from "./lib/nav";
+  import { canInstall, iosInstall, installDismissed, promptInstall, dismissInstall } from "./lib/install";
   import { get } from "svelte/store";
   import AccessGate from "./components/AccessGate.svelte";
   import Now from "./components/Now.svelte";
@@ -120,6 +121,17 @@
 {:else if !$unlocked && (!$orgConfig.setupComplete || $orgConfig.pii)}
   <AccessGate salt={$orgConfig.pii?.salt ?? ""} verifier={$orgConfig.pii?.verifier ?? ""} />
 {:else}
+  {#if !$installDismissed && ($canInstall || $iosInstall)}
+    <div class="install-banner">
+      {#if $canInstall}
+        <span>Add this app to your device for quick, offline access.</span>
+        <button class="i-btn" onclick={promptInstall}>Install</button>
+      {:else}
+        <span>To install: tap <b>Share</b>, then <b>Add to Home Screen</b>.</span>
+      {/if}
+      <button class="i-x" onclick={dismissInstall} aria-label="Dismiss install banner">✕</button>
+    </div>
+  {/if}
   {#if $configUpdated}
     <div class="banner">
       <span>New team info available.</span>
@@ -193,6 +205,33 @@
     border-radius: 6px;
   }
   .banner button.x {
+    padding: 6px 8px;
+  }
+  .install-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    font-size: 0.85rem;
+  }
+  .install-banner span {
+    flex: 1;
+  }
+  .install-banner .i-btn {
+    flex: 0 0 auto;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+  }
+  .install-banner .i-x {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
+    color: var(--muted);
     padding: 6px 8px;
   }
   .leave-backdrop {

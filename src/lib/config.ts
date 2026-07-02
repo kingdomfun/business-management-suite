@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import type { Employee, OrgConfig } from "./types";
+import type { CalendarEvent, Employee, OrgConfig } from "./types";
 import { DEFAULT_FINANCE } from "./finance";
 import { piiKey } from "./access";
 import { decryptField, isEncrypted } from "./crypto";
@@ -88,7 +88,8 @@ async function recompute(): Promise<void> {
   if (!key) {
     // Locked: hide encrypted fields so they never show scrambled; leave any
     // plaintext (legacy) fields untouched. The encrypted schedule blob (`sched`)
-    // is dropped and its runtime fields blanked so no schedule leaks.
+    // is dropped and its runtime fields blanked so no schedule leaks. Dated
+    // events are private too, so they stay hidden (eventsEnc dropped) until unlock.
     const employees = c.employees.map((e) => {
       const { sched, ...rest } = e;
       return {
@@ -99,7 +100,8 @@ async function recompute(): Promise<void> {
         ...(sched ? { templateId: undefined, customSchedule: undefined } : {}),
       };
     });
-    if (token === pass) orgConfig.set({ ...c, employees });
+    const { eventsEnc, ...bare } = c;
+    if (token === pass) orgConfig.set({ ...bare, employees, events: undefined });
     return;
   }
 
@@ -127,7 +129,20 @@ async function recompute(): Promise<void> {
       return out;
     })
   );
-  if (token === pass) orgConfig.set({ ...c, employees });
+
+  // Decrypt the dated-events blob back into `events` (drop the at-rest field).
+  const { eventsEnc, ...bare } = c;
+  let events = c.events;
+  if (eventsEnc) {
+    try {
+      const json = await decryptField(key, eventsEnc);
+      events = json ? (JSON.parse(json) as CalendarEvent[]) : undefined;
+    } catch {
+      events = undefined; // bad / undecryptable blob → no events rather than a leak
+    }
+  }
+
+  if (token === pass) orgConfig.set({ ...bare, employees, events });
 }
 
 /**

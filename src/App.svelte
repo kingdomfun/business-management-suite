@@ -5,7 +5,7 @@
   import { startConfigSync, configUpdated, orgConfig, configReady } from "./lib/config";
   import { unlocked, savedPassword, unlock, openWithoutGate } from "./lib/access";
   import { isBiometricSupported, hasBiometric } from "./lib/biometric";
-  import { alarmTemplate } from "./lib/templates";
+  import { alarmDayTemplate } from "./lib/templates";
   import { focus, toggleFocus } from "./lib/focus";
   import { openToolId } from "./lib/tools";
   import { unsavedChanges, pendingLeave, requestLeave, confirmLeave, cancelLeave } from "./lib/nav";
@@ -68,7 +68,7 @@
   $effect(() =>
     startWebScheduler(() => ({
       state: $appState,
-      template: alarmTemplate($appState, $orgConfig, new Date()),
+      template: alarmDayTemplate($appState, $orgConfig, new Date()),
     }))
   );
 

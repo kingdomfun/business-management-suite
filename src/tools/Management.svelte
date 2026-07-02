@@ -27,7 +27,7 @@
   import { financeOf, computeBreakdown, money } from "../lib/finance";
   import { TEMPLATES, templateById } from "../lib/templates";
   import { toMinutes } from "../lib/schedule";
-  import type { AccessConfig, Block, Employee, FinanceConfig, Holiday, OrgConfig, PlanTarget, ReserveItem, WorkerRole } from "../lib/types";
+  import type { AccessConfig, Block, CalendarEvent, Employee, FinanceConfig, Holiday, OrgConfig, PlanTarget, ReserveItem, WorkerRole } from "../lib/types";
 
   // Managers edit a local draft, then publish it as config.json. Everything here
   // is public data — no secrets. Locally, "publish" = save the JSON to
@@ -73,6 +73,56 @@
   }
   function removeHoliday(i: number) {
     holidays = holidays.filter((_, idx) => idx !== i);
+  }
+
+  // Company appointments / special days. Each lands on its date as a block in the
+  // schedules of everyone (or only the checked employees). Published encrypted.
+  interface EditEvent {
+    id: string;
+    date: string;
+    time: string;
+    label: string;
+    detail: string;
+    employeeIds: string[]; // empty = everyone
+    replacesDay: boolean;
+  }
+  let events = $state<EditEvent[]>(
+    (start.events ?? []).map((e) => ({
+      id: e.id,
+      date: e.date,
+      time: e.time,
+      label: e.label,
+      detail: e.detail ?? "",
+      employeeIds: [...(e.employeeIds ?? [])],
+      replacesDay: !!e.replacesDay,
+    }))
+  );
+  function addCompanyEvent() {
+    const id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    events = [...events, { id, date: "", time: "09:00", label: "", detail: "", employeeIds: [], replacesDay: false }];
+  }
+  function removeCompanyEvent(i: number) {
+    events = events.filter((_, idx) => idx !== i);
+  }
+  function toggleEventEmployee(i: number, empId: string) {
+    events = events.map((e, idx) =>
+      idx === i
+        ? { ...e, employeeIds: e.employeeIds.includes(empId) ? e.employeeIds.filter((x) => x !== empId) : [...e.employeeIds, empId] }
+        : e
+    );
+  }
+  /** Build the publishable events list (runtime/plaintext; encrypted at publish). */
+  function buildEvents(): CalendarEvent[] {
+    return events
+      .map((e) => {
+        const ev: CalendarEvent = { id: e.id, date: e.date.trim(), time: e.time || "09:00", label: e.label.trim() };
+        if (e.detail.trim()) ev.detail = e.detail.trim();
+        if (e.employeeIds.length) ev.employeeIds = [...e.employeeIds];
+        if (e.replacesDay) ev.replacesDay = true;
+        return ev;
+      })
+      .filter((e) => e.date && e.label)
+      .sort((a, b) => a.date.localeCompare(b.date) || toMinutes(a.time) - toMinutes(b.time));
   }
 
   // ---- Access: manager contact + per-tool password locks ---------------------
@@ -350,6 +400,10 @@
         .filter((h) => h.date && h.name)
         .sort((a, b) => a.date.localeCompare(b.date)),
       employees,
+      ...(() => {
+        const evts = buildEvents();
+        return evts.length ? { events: evts } : {};
+      })(),
       ...(access ? { access } : {}),
       ...(publish ? { publish } : {}),
     };
@@ -409,7 +463,12 @@
         return out;
       })
     );
-    return { ...base, pii: { salt, verifier }, employees };
+    // Dated events are private too — encrypt them into `eventsEnc`, never publish
+    // the plaintext `events`.
+    const { events: plainEvents, ...rest } = base;
+    const out: OrgConfig = { ...rest, pii: { salt, verifier }, employees };
+    if (plainEvents?.length) out.eventsEnc = await encryptField(key, JSON.stringify(plainEvents));
+    return out;
   }
 
   async function buildPublishJson(): Promise<string> {
@@ -429,7 +488,10 @@
       if (e.templateId || e.customSchedule) masked.sched = tag;
       return masked;
     });
-    return { ...base, pii: { salt: "…", verifier: "…" }, employees };
+    const { events: plainEvents, ...rest } = base;
+    const out: OrgConfig = { ...rest, pii: { salt: "…", verifier: "…" }, employees };
+    if (plainEvents?.length) out.eventsEnc = tag;
+    return out;
   }
   let json = $derived(JSON.stringify(previewConfig(), null, 2));
   let copied = $state(false);
@@ -690,6 +752,43 @@
         </div>
       {/each}
       <button class="add-link" onclick={addHoliday}>+ Add holiday</button>
+
+      <div class="sublabel">
+        Appointments &amp; events
+        <span class="muted" style="font-weight:400">· one-off items added to schedules</span>
+      </div>
+      <p class="muted note" style="margin:0 0 8px">
+        Each lands on its date as a block on the next config fetch. Encrypted on publish.
+      </p>
+      {#each events as ev, i (ev.id)}
+        <div class="cblock">
+          <div class="crow">
+            <input type="date" aria-label="Event {i + 1} date" bind:value={ev.date} />
+            <input class="ctime" type="time" aria-label="Event {i + 1} time" bind:value={ev.time} />
+            <button class="sq" title="Remove event" aria-label="Remove event" onclick={() => removeCompanyEvent(i)}>✕</button>
+          </div>
+          <input type="text" aria-label="Event {i + 1} title" placeholder="What (e.g. All-hands meeting)" bind:value={ev.label} />
+          <input type="text" aria-label="Event {i + 1} detail" placeholder="Detail (optional)" bind:value={ev.detail} />
+          <div class="clabel">Applies to <span class="muted" style="font-weight:400">· none checked = everyone</span></div>
+          {#if team.length === 0}
+            <p class="muted note" style="margin:0">Add employees below to target specific people.</p>
+          {:else}
+            <div class="toolpick">
+              {#each team as w (w.id)}
+                <label class="chk">
+                  <input type="checkbox" checked={ev.employeeIds.includes(w.id)} onchange={() => toggleEventEmployee(i, w.id)} />
+                  {w.name}
+                </label>
+              {/each}
+            </div>
+          {/if}
+          <label class="chk" style="margin-top:4px">
+            <input type="checkbox" bind:checked={ev.replacesDay} />
+            Replace the normal schedule that day
+          </label>
+        </div>
+      {/each}
+      <button class="add-link" onclick={addCompanyEvent}>+ Add appointment / event</button>
     </div>
   </details>
 </div>
@@ -1070,7 +1169,8 @@
     align-items: center;
     gap: 6px;
   }
-  .crow input[type="text"] {
+  .crow input[type="text"],
+  .crow input[type="date"] {
     flex: 1 1 auto;
     min-width: 0;
   }

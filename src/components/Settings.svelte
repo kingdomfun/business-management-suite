@@ -12,6 +12,7 @@
     setWakeAlarmEnabled,
     setWakeAlarmTime,
   } from "../lib/state";
+  import Appointments from "./Appointments.svelte";
   import { testAlert, requestPermission } from "../lib/notify";
   import { hasBiometric, clearBiometric } from "../lib/biometric";
   import { orgConfig } from "../lib/config";
@@ -180,6 +181,12 @@
       </p>
     </div>
   {/if}
+</div>
+
+<div class="card">
+  <h3>My appointments</h3>
+  <p class="muted hint" style="margin:-4px 0 12px">One-off events added to your schedule on a chosen day — e.g. a 1 PM call.</p>
+  <Appointments />
 </div>
 
 <div class="card">

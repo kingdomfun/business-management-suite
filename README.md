@@ -4,7 +4,7 @@
 
 An all-in-one app for running a small team from your phone: everyone sees their own
 daily schedule, a shared staff directory, and a simple budget/pay overview — plus
-handy tools like a project board and calculator. Team members just open a link:
+handy tools like a project board and quick notes. Team members just open a link:
 nothing to install and no account to create. A manager keeps everything up to date
 and it syncs out to everyone automatically.
 
@@ -33,9 +33,9 @@ Footer tabs: **Focus · Schedule · Tools · HR · Business · Settings**.
   checklists and (for software) an end-of-day "plan for tomorrow" form that feeds
   the next day's slots. Company holidays replace the schedule for the day. An
   hourly chime moves you to the next block while the app is open.
-- **Tools** — a modular tool drawer (see *Tools* below): Calculator, Scratchpad,
-  Projects (kanban + email progress report), Prompt Builder, and the admin-gated
-  Management tool.
+- **Tools** — a modular tool drawer (see *Tools* below): Scratchpad, Projects
+  (kanban + email progress report), Prompt Builder, and the admin-gated Management
+  tool.
 - **HR** — company social links plus the team directory from `config.json`, each
   member with call / email / view-schedule actions.
 - **Business** — the budget model: gross revenue → tax + vendor → post-tax pool →
@@ -92,7 +92,7 @@ src/
     tools.ts        tool registry (import.meta.glob over src/tools/*.svelte)
   components/        Now, HR, Business, Tools, Settings, Pie, Checklist,
                      Icon, EmailModal, AdminGate, AccessGate, ShareView
-  tools/            Calculator, Scratchpad, Projects, PromptBuilder, Management
+  tools/            Scratchpad, Projects, PromptBuilder, Management
   templates/        one ScheduleTemplate per role (software, construction, …)
   email-templates/  mailto: templates (check-in, sick-day, meeting-request, …)
   App.svelte        tab shell + access gate + share-link route
@@ -255,7 +255,6 @@ there's a single secret to manage, stored on that device only.
 <details>
 <summary><b>Tools</b></summary>
 
-- **Calculator** — four-function calculator.
 - **Scratchpad** — quick notes, saved on this device.
 - **Projects** — a simple kanban board (To do / In progress / Done) with multiple
   projects and an emailed progress report (recipient pulled from the directory).

@@ -1,5 +1,5 @@
-import type { AppState, Block, OrgConfig, PersonalSchedule, ScheduleTemplate } from "./types";
-import { dateKey, findHoliday, isOffHours } from "./schedule";
+import type { AppState, Block, CalendarEvent, OrgConfig, PersonalSchedule, ScheduleTemplate } from "./types";
+import { dateKey, eventBlock, eventsForDay, findHoliday, isOffHours, toMinutes } from "./schedule";
 
 // The schedule template library. Each role lives in its own file under
 // src/schedule-templates/ (like src/email-templates/) and exports a `template`
@@ -82,6 +82,40 @@ export function effectiveTemplate(state: AppState, config: OrgConfig, now: Date)
     return personalTemplate(state.personal);
   }
   return resolveTemplate(state.myEmployeeId, config);
+}
+
+// ---- Dated events overlay --------------------------------------------------
+
+const byTime = (a: Block, b: Block) => toMinutes(a.time) - toMinutes(b.time);
+
+/**
+ * Overlay a date's events onto a base template. No events → the base unchanged.
+ * If any applicable event marks the day as replaced → a one-off "special day"
+ * template of just the event blocks; otherwise the events are merged in by time.
+ */
+export function withEvents(base: ScheduleTemplate, events: CalendarEvent[]): ScheduleTemplate {
+  if (!events.length) return base;
+  const eventBlocks = events.map(eventBlock);
+  if (events.some((e) => e.replacesDay)) {
+    return asTemplate("events", "Special day", "A one-off schedule for today", [...eventBlocks].sort(byTime));
+  }
+  return { ...base, blocks: [...base.blocks, ...eventBlocks].sort(byTime) };
+}
+
+/** The events applicable to this device on `now` (none on a company holiday). */
+function dayEvents(state: AppState, config: OrgConfig, now: Date): CalendarEvent[] {
+  if (findHoliday(config.holidays, dateKey(now))) return [];
+  return eventsForDay(dateKey(now), state.myEmployeeId, config.events, state.events);
+}
+
+/** The schedule to SHOW now: the effective template with today's events overlaid. */
+export function dayTemplate(state: AppState, config: OrgConfig, now: Date): ScheduleTemplate {
+  return withEvents(effectiveTemplate(state, config, now), dayEvents(state, config, now));
+}
+
+/** The schedule the ALARM scheduler uses: the alarm template with events overlaid. */
+export function alarmDayTemplate(state: AppState, config: OrgConfig, now: Date): ScheduleTemplate {
+  return withEvents(alarmTemplate(state, config, now), dayEvents(state, config, now));
 }
 
 /**

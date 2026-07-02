@@ -1,4 +1,4 @@
-import type { AppState, Block, Holiday, PlanTarget, ScheduleTemplate } from "./types";
+import type { AppState, Block, CalendarEvent, Holiday, PlanTarget, ScheduleTemplate } from "./types";
 
 // Pure scheduling logic — no DOM, no storage — so it is trivially unit-testable.
 
@@ -36,6 +36,38 @@ export function findHoliday(holidays: Holiday[] | undefined, key: string): Holid
   return holidays?.find((h) => h.date === key);
 }
 
+// ---- Dated events / appointments -------------------------------------------
+
+/**
+ * The events that apply to a given date + device: company events matching the
+ * date that target either everyone (no employeeIds) or this employee, plus every
+ * personal event on that date. Returned sorted by time.
+ */
+export function eventsForDay(
+  key: string,
+  myEmployeeId: string | undefined,
+  companyEvents: CalendarEvent[] | undefined,
+  personalEvents: CalendarEvent[] | undefined
+): CalendarEvent[] {
+  const out: CalendarEvent[] = [];
+  for (const e of companyEvents ?? []) {
+    if (e.date !== key) continue;
+    if (e.employeeIds?.length && !(myEmployeeId && e.employeeIds.includes(myEmployeeId))) continue;
+    out.push(e);
+  }
+  for (const e of personalEvents ?? []) {
+    if (e.date === key) out.push(e);
+  }
+  return out.sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
+}
+
+/** Turn a dated event into a schedule block, marked so the UI can badge it. */
+export function eventBlock(e: CalendarEvent): Block {
+  const b: Block = { time: e.time, label: e.label, event: true };
+  if (e.detail) b.detail = e.detail;
+  return b;
+}
+
 // ---- Off-hours -------------------------------------------------------------
 
 /**
@@ -70,9 +102,16 @@ export interface CurrentBlock {
 /**
  * Resolve the block active at `now`. Blocks are sorted by time; the active
  * block is the last one whose start time is <= now. Returns null before the
- * first block of the day. The final block runs until midnight.
+ * first block of the day.
+ *
+ * The final block normally runs until midnight. Pass `dayEndMin` (minutes since
+ * midnight, e.g. the end of the Focus window) to bound a *work* day: the last
+ * block then ends there — so the "time left" countdown reflects the real end of
+ * the day rather than midnight — and any moment past it counts as the day being
+ * over (no active block). The cap is ignored if it falls at/before the last
+ * block's start, so a misconfigured window can't hide the block.
  */
-export function currentBlock(blocks: Block[], now: Date): CurrentBlock | null {
+export function currentBlock(blocks: Block[], now: Date, dayEndMin?: number): CurrentBlock | null {
   if (blocks.length === 0) return null;
   const sorted = [...blocks].sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
   const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -85,7 +124,11 @@ export function currentBlock(blocks: Block[], now: Date): CurrentBlock | null {
   if (idx === -1) return null; // before the day's first block
 
   const next = idx + 1 < sorted.length ? sorted[idx + 1] : null;
-  const endMin = next ? toMinutes(next.time) : 24 * 60;
+  let endMin = next ? toMinutes(next.time) : 24 * 60;
+  if (!next && dayEndMin !== undefined && dayEndMin > toMinutes(sorted[idx].time)) {
+    if (nowMin >= dayEndMin) return null; // past the end of the working day
+    endMin = dayEndMin;
+  }
   return { block: sorted[idx], index: idx, endsInMin: endMin - nowMin, next };
 }
 
@@ -104,6 +147,8 @@ export interface NowView {
   isPlan: boolean;
   /** this block's planning inputs (empty unless isPlan) */
   planTargets: PlanTarget[];
+  /** true when the active block is a one-off dated appointment (see eventBlock). */
+  isEvent: boolean;
 }
 
 /** Pretty-case a label for display, e.g. "deep work" -> "Deep work". */
@@ -111,9 +156,15 @@ export function displayLabel(label: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-/** Everything the Now screen needs for a given moment. */
-export function nowView(template: ScheduleTemplate, state: AppState, now: Date): NowView | null {
-  const cur = currentBlock(template.blocks, now);
+/** Everything the Now screen needs for a given moment. `dayEndMin` bounds a work
+ *  day's final block (see currentBlock); omit it for schedules that run to midnight. */
+export function nowView(
+  template: ScheduleTemplate,
+  state: AppState,
+  now: Date,
+  dayEndMin?: number
+): NowView | null {
+  const cur = currentBlock(template.blocks, now, dayEndMin);
   if (!cur) return null;
 
   const dk = dateKey(now);
@@ -141,6 +192,7 @@ export function nowView(template: ScheduleTemplate, state: AppState, now: Date):
     checklist,
     isPlan: planTargets.length > 0,
     planTargets,
+    isEvent: !!cur.block.event,
   };
 }
 

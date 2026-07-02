@@ -69,6 +69,37 @@ describe("currentBlock", () => {
   });
 });
 
+describe("currentBlock end-of-day cap", () => {
+  // blocks[] ends with the 16:00 "Plan for Tomorrow & Shutdown" block.
+  it("counts the final block down to the work-day end, not midnight", () => {
+    const c = currentBlock(blocks, at("2026-06-22", 16, 15), 17 * 60);
+    expect(c?.block.label).toBe("Plan for Tomorrow & Shutdown");
+    expect(c?.endsInMin).toBe(45); // 16:15 → 17:00, not → midnight
+  });
+
+  it("treats time past the work-day end as no active block", () => {
+    expect(currentBlock(blocks, at("2026-06-22", 17, 30), 17 * 60)).toBeNull();
+  });
+
+  it("still runs the final block to midnight with no cap", () => {
+    const c = currentBlock(blocks, at("2026-06-22", 17, 30));
+    expect(c?.block.label).toBe("Plan for Tomorrow & Shutdown");
+    expect(c?.endsInMin).toBe(390); // 17:30 → midnight
+  });
+
+  it("ignores a cap at/before the final block's start (keeps it visible)", () => {
+    const c = currentBlock(blocks, at("2026-06-22", 16, 30), 16 * 60);
+    expect(c?.block.label).toBe("Plan for Tomorrow & Shutdown");
+    expect(c?.endsInMin).toBe(450); // falls back to midnight
+  });
+
+  it("does not affect a non-final block", () => {
+    const c = currentBlock(blocks, at("2026-06-22", 10, 0), 17 * 60);
+    expect(c?.block.label).toBe("Deep Work: Primary Task");
+    expect(c?.endsInMin).toBe(120); // still bounded by the next block at 12:00
+  });
+});
+
 describe("nowView", () => {
   it("composes the headline and overlays a task note", () => {
     const s = defaultState();

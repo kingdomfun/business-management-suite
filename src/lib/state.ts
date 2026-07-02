@@ -1,5 +1,5 @@
 import { writable } from "svelte/store";
-import type { AppState, BlockInstance, MonthlyReport } from "./types";
+import type { AppState, BlockInstance, CalendarEvent, MonthlyReport } from "./types";
 import { defaultState } from "./defaults";
 import { toMinutes } from "./schedule";
 
@@ -121,6 +121,43 @@ export function updatePersonalBlock(index: number, patch: { time?: string; label
 export function removePersonalBlock(index: number): void {
   update((s) => {
     s.personal.blocks = s.personal.blocks.filter((_, i) => i !== index);
+  });
+}
+
+// ---- Personal one-off appointments -----------------------------------------
+
+/** Sort events chronologically (date, then time). */
+function byDateTime(a: CalendarEvent, b: CalendarEvent): number {
+  return a.date.localeCompare(b.date) || toMinutes(a.time) - toMinutes(b.time);
+}
+
+export function addEvent(e: Omit<CalendarEvent, "id">): void {
+  update((s) => {
+    const id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    (s.events ??= []).push({ id, ...e });
+    s.events.sort(byDateTime);
+  });
+}
+
+export function updateEvent(id: string, patch: Partial<Omit<CalendarEvent, "id">>): void {
+  update((s) => {
+    const ev = s.events?.find((x) => x.id === id);
+    if (!ev) return;
+    if (patch.date !== undefined) ev.date = patch.date;
+    if (patch.time !== undefined) ev.time = patch.time;
+    if (patch.label !== undefined) ev.label = patch.label;
+    if (patch.detail !== undefined) {
+      if (patch.detail.trim()) ev.detail = patch.detail;
+      else delete ev.detail;
+    }
+    if (patch.replacesDay !== undefined) ev.replacesDay = patch.replacesDay;
+    (s.events ??= []).sort(byDateTime);
+  });
+}
+
+export function removeEvent(id: string): void {
+  update((s) => {
+    s.events = (s.events ?? []).filter((x) => x.id !== id);
   });
 }
 

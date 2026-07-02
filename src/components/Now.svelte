@@ -1,15 +1,26 @@
 <script lang="ts">
   import { state as appState, setTaskNote, toggleStep } from "../lib/state";
   import { orgConfig } from "../lib/config";
-  import { effectiveTemplate, PERSONAL_TEMPLATE_ID } from "../lib/templates";
+  import { dayTemplate, PERSONAL_TEMPLATE_ID } from "../lib/templates";
   import { nowView, dateKey, displayLabel, nextDay, formatTime, findHoliday } from "../lib/schedule";
   import { isWakeLockSupported } from "../lib/wakelock";
   import { focus } from "../lib/focus";
   import Checklist from "./Checklist.svelte";
+  import Appointments from "./Appointments.svelte";
+
+  // `previewNow` lets the dev preview tool freeze the clock at an arbitrary time
+  // to inspect time-dependent UI (the plan block, an appointment). Undefined in
+  // normal use, where the clock ticks live.
+  let { previewNow }: { previewNow?: Date } = $props();
 
   // Reactive clock — re-render every 20s so the active block + countdown stay live.
-  let now = $state(new Date());
+  // svelte-ignore state_referenced_locally
+  let now = $state(previewNow ?? new Date());
   $effect(() => {
+    if (previewNow) {
+      now = previewNow;
+      return;
+    }
     const id = setInterval(() => (now = new Date()), 20_000);
     return () => clearInterval(id);
   });
@@ -18,15 +29,20 @@
   // A company-wide day off takes over the whole screen.
   let holiday = $derived(findHoliday($orgConfig.holidays, dk));
   // The schedule in effect now: personal off-hours schedule when applicable,
-  // else the device's assigned work template.
-  let template = $derived(effectiveTemplate($appState, $orgConfig, now));
+  // else the device's assigned work template — with today's one-off appointments
+  // (personal + company events) overlaid on top.
+  let template = $derived(dayTemplate($appState, $orgConfig, now));
   let isPersonal = $derived(template.id === PERSONAL_TEMPLATE_ID);
   // Until the user picks who they are (Settings → "I am"), a work schedule is just
   // the company default — prompt them to identify first. Holidays + personal
   // off-hours schedules don't depend on an employee identity, so they still show.
   let needsIdentity = $derived(!$appState.myEmployeeId);
   let hasEmployees = $derived(($orgConfig.employees?.length ?? 0) > 0);
-  let view = $derived(holiday ? null : nowView(template, $appState, now));
+  // Bound the final block of a *work* day at the end of the Focus window so the
+  // countdown reads the real end of day (not midnight). Personal off-hours blocks
+  // (e.g. Sleep) legitimately run to midnight, so they pass no cap.
+  let dayEndMin = $derived(isPersonal ? undefined : $appState.settings.activeHours.end * 60);
+  let view = $derived(holiday ? null : nowView(template, $appState, now, dayEndMin));
   // The 4 PM block plans for tomorrow; its fields write to tomorrow's blocks.
   let tomorrowKey = $derived(dateKey(nextDay(now)));
   function planValue(time: string): string {
@@ -80,6 +96,7 @@
     <div class="now-time">
       {fmtClock(now)} · {now.toLocaleDateString([], { weekday: "long" })}
       {#if isPersonal}<span class="pill">Personal</span>{/if}
+      {#if view.isEvent}<span class="pill">Appointment</span>{/if}
     </div>
     <div class="now-label">{displayLabel(view.label)}</div>
     {#if view.detail}<div class="now-theme">{view.detail}</div>{/if}
@@ -113,6 +130,15 @@
         ></textarea>
         <div style="height:10px"></div>
       {/each}
+    </div>
+
+    <!-- Set one-off calendar entries while planning (defaults to tomorrow). -->
+    <div class="card">
+      <h3>Appointments</h3>
+      <p class="muted" style="margin-top:0;font-size:.85rem">
+        Add a one-off calendar entry for any day — it appears on your schedule that day.
+      </p>
+      <Appointments defaultDate={tomorrowKey} />
     </div>
   {/if}
 

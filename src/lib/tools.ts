@@ -23,6 +23,8 @@ export interface ToolMeta {
   order?: number;
   /** management-only: requires the admin gate to open */
   admin?: boolean;
+  /** dev-only: shown only under `npm run dev` (see the `*.dev.svelte` registry below) */
+  dev?: boolean;
 }
 
 export interface Tool {
@@ -31,13 +33,19 @@ export interface Tool {
   Component: Component;
 }
 
-// Eagerly bundle every tool so the registry is ready synchronously.
-const modules = import.meta.glob("../tools/*.svelte", { eager: true }) as Record<
-  string,
-  { default: Component; meta?: ToolMeta }
->;
+// Eagerly bundle every regular tool so the registry is ready synchronously.
+// `*.dev.svelte` files are excluded here and loaded only under `npm run dev` via
+// the DEV-gated glob below — in a production build `import.meta.env.DEV` is a
+// compile-time `false`, so that branch (and those files) are dropped entirely.
+type ToolModule = { default: Component; meta?: ToolMeta };
+const modules = import.meta.glob(["../tools/*.svelte", "!../tools/*.dev.svelte"], {
+  eager: true,
+}) as Record<string, ToolModule>;
+const devModules = (
+  import.meta.env.DEV ? import.meta.glob("../tools/*.dev.svelte", { eager: true }) : {}
+) as Record<string, ToolModule>;
 
-export const tools: Tool[] = Object.entries(modules)
+export const tools: Tool[] = Object.entries({ ...modules, ...devModules })
   .map(([path, mod]) => {
     const id = path.split("/").pop()!.replace(/\.svelte$/, "");
     return { id, Component: mod.default, meta: mod.meta ?? { name: id } };

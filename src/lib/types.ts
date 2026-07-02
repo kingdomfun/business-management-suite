@@ -25,6 +25,11 @@ export interface Block {
   checklist?: string[];
   /** Optional per-step planning inputs that feed tomorrow's matching blocks. */
   plan?: PlanTarget[];
+  /**
+   * Runtime-only marker: this block was injected from a dated CalendarEvent (a
+   * one-off appointment), so the UI can badge it. Never persisted on a template.
+   */
+  event?: boolean;
 }
 
 export type AlertStyle = "persistent" | "standard";
@@ -53,6 +58,34 @@ export interface Holiday {
   date: string;
   /** display name, e.g. "Christmas Day" */
   name: string;
+}
+
+/**
+ * A one-off dated appointment or special day laid over the standing schedule —
+ * e.g. "Call client at 1 PM" or a whole-day event with a bespoke schedule.
+ * Company events (published in config.json) and personal events (device-local)
+ * share this shape. On its `date` the event appears as a block at `time`.
+ */
+export interface CalendarEvent {
+  /** stable unique id */
+  id: string;
+  /** "YYYY-MM-DD" the event lands on */
+  date: string;
+  /** "HH:MM" start time — the event shows as a block at this time */
+  time: string;
+  label: string;
+  /** optional one-line hint shown under the label */
+  detail?: string;
+  /**
+   * Company events only: whom it applies to. Empty/undefined = the whole company;
+   * otherwise the employee ids it targets. (Personal events ignore this field.)
+   */
+  employeeIds?: string[];
+  /**
+   * When true, this date's applicable events REPLACE the normal schedule for the
+   * people it applies to (a one-off "special day") instead of overlaying on top.
+   */
+  replacesDay?: boolean;
 }
 
 /** Per-date instance data: the task layer laid over the standing schedule. */
@@ -231,6 +264,18 @@ export interface OrgConfig {
   defaultTemplateId?: string;
   /** Company-wide days off. */
   holidays?: Holiday[];
+  /**
+   * One-off dated appointments / special days added to everyone's (or specific
+   * employees') schedules. RUNTIME only — like schedules they're private, so at
+   * rest they're encrypted into `eventsEnc` rather than published in plaintext;
+   * config.ts decrypts them back into this field on unlock.
+   */
+  events?: CalendarEvent[];
+  /**
+   * AT-REST only: AES-GCM of JSON.stringify(events). Absent at runtime (config.ts
+   * expands it back into `events` on unlock, and blanks both while locked).
+   */
+  eventsEnc?: string;
   /** Manager contact + per-tool password locks. */
   access?: AccessConfig;
   /**
@@ -262,6 +307,8 @@ export interface AppState {
   myEmployeeId?: string;
   /** Optional personal off-hours / weekend schedule (used outside work hours). */
   personal: PersonalSchedule;
+  /** Device-local one-off appointments the user adds (Settings → My appointments). */
+  events: CalendarEvent[];
   days: Record<string, DayData>; // keyed "YYYY-MM-DD"
   settings: Settings;
   manage: ManageAuth;

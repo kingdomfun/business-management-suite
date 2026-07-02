@@ -9,6 +9,8 @@ export function defaultState(): AppState {
   return {
     days: {},
     reports: [],
+    // One-off appointments the user adds on this device (Settings → My appointments).
+    events: [],
     // A starter personal off-hours routine, disabled by default. The user can
     // enable it + edit the blocks in Settings to use the tool outside work hours.
     // Nights (10 PM–6 AM) default to Sleep; the two Sleep blocks bridge midnight

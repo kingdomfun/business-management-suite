@@ -27,6 +27,7 @@
   import { financeOf, computeBreakdown, money } from "../lib/finance";
   import { TEMPLATES, templateById } from "../lib/templates";
   import { toMinutes } from "../lib/schedule";
+  import { LEAVE_TYPES, leaveUsage } from "../lib/leave";
   import type { AccessConfig, Block, CalendarEvent, Employee, FinanceConfig, Holiday, OrgConfig, PlanTarget, ReserveItem, WorkerRole } from "../lib/types";
 
   // Managers edit a local draft, then publish it as config.json. Everything here
@@ -85,6 +86,7 @@
     detail: string;
     employeeIds: string[]; // empty = everyone
     replacesDay: boolean;
+    leaveType: "" | "sick" | "holiday"; // "" = a normal appointment
   }
   let events = $state<EditEvent[]>(
     (start.events ?? []).map((e) => ({
@@ -95,11 +97,12 @@
       detail: e.detail ?? "",
       employeeIds: [...(e.employeeIds ?? [])],
       replacesDay: !!e.replacesDay,
+      leaveType: e.leaveType ?? "",
     }))
   );
   function addCompanyEvent() {
     const id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    events = [...events, { id, date: "", time: "09:00", label: "", detail: "", employeeIds: [], replacesDay: false }];
+    events = [...events, { id, date: "", time: "09:00", label: "", detail: "", employeeIds: [], replacesDay: false, leaveType: "" }];
   }
   function removeCompanyEvent(i: number) {
     events = events.filter((_, idx) => idx !== i);
@@ -119,6 +122,8 @@
         if (e.detail.trim()) ev.detail = e.detail.trim();
         if (e.employeeIds.length) ev.employeeIds = [...e.employeeIds];
         if (e.replacesDay) ev.replacesDay = true;
+        // Leave only counts when it targets specific people (see lib/leave.ts).
+        if (e.leaveType && e.employeeIds.length) ev.leaveType = e.leaveType;
         return ev;
       })
       .filter((e) => e.date && e.label)
@@ -202,12 +207,35 @@
 
   let team = $derived(sortWorkers(employees));
 
+  // ---- Leave & time off ------------------------------------------------------
+  // Allowances are set per employee (in the employee form); "used" days are
+  // DERIVED from dated leave events on the company calendar, tallied per calendar
+  // year — nothing extra is stored. See lib/leave.ts.
+  let leaveYear = $state(String(new Date().getFullYear()));
+  let leaveRows = $derived.by(() => {
+    const evts = buildEvents();
+    return team.map((w) => ({
+      w,
+      sick: leaveUsage(w, evts, "sick", leaveYear),
+      holiday: leaveUsage(w, evts, "holiday", leaveYear),
+    }));
+  });
+  // The current year plus any year that already has leave booked, newest first.
+  let leaveYears = $derived.by(() => {
+    const ys = new Set<string>([String(new Date().getFullYear()), leaveYear]);
+    for (const e of events) if (e.leaveType && e.date.length >= 4) ys.add(e.date.slice(0, 4));
+    return [...ys].sort((a, b) => b.localeCompare(a));
+  });
+
   // Employee form: null = closed, "new" = adding, otherwise the id being edited.
   let mode = $state<null | "new" | string>(null);
   let fName = $state("");
   let fRole = $state<WorkerRole>("general");
   let fEmail = $state("");
   let fPhone = $state("");
+  // Yearly leave allowances in whole days (null when the field is cleared).
+  let fSick = $state<number | null>(null);
+  let fHoliday = $state<number | null>(null);
   // "" = company default, a template id, or "custom" for a bespoke schedule.
   let fTemplate = $state("");
 
@@ -262,6 +290,8 @@
     fRole = "general";
     fEmail = "";
     fPhone = "";
+    fSick = null;
+    fHoliday = null;
     fTemplate = "";
     fCustomBlocks = [];
   }
@@ -273,6 +303,8 @@
     fRole = w.role;
     fEmail = w.email ?? "";
     fPhone = w.phone ?? "";
+    fSick = w.sickAllowance ?? null;
+    fHoliday = w.holidayAllowance ?? null;
     if (w.customSchedule?.blocks.length) {
       fTemplate = "custom";
       fCustomBlocks = w.customSchedule.blocks.map(blockToEdit);
@@ -285,11 +317,14 @@
     const nm = fName.trim();
     if (!nm) return;
     const useCustom = fTemplate === "custom";
+    const allowance = (v: number | null) => (v != null && !isNaN(v) && v > 0 ? Math.round(v) : undefined);
     const fields = {
       name: nm,
       role: fRole,
       email: fEmail.trim() || undefined,
       phone: fPhone.trim() || undefined,
+      sickAllowance: allowance(fSick),
+      holidayAllowance: allowance(fHoliday),
       templateId: useCustom ? undefined : fTemplate || undefined,
       customSchedule: useCustom
         ? { blocks: fCustomBlocks.map(editToBlock).sort((a, b) => toMinutes(a.time) - toMinutes(b.time)) }
@@ -454,6 +489,9 @@
           phone: e.phone ? await encryptField(key, e.phone) : undefined,
         };
         if (e.links) out.links = e.links;
+        // Leave allowances are public policy numbers — published in plaintext.
+        if (e.sickAllowance) out.sickAllowance = e.sickAllowance;
+        if (e.holidayAllowance) out.holidayAllowance = e.holidayAllowance;
         if (e.templateId || e.customSchedule) {
           out.sched = await encryptField(
             key,
@@ -485,6 +523,8 @@
     const employees = base.employees.map((e) => {
       const masked: Employee = { id: e.id, role: e.role, name: tag, email: mask(e.email), phone: mask(e.phone) };
       if (e.links) masked.links = e.links;
+      if (e.sickAllowance) masked.sickAllowance = e.sickAllowance;
+      if (e.holidayAllowance) masked.holidayAllowance = e.holidayAllowance;
       if (e.templateId || e.customSchedule) masked.sched = tag;
       return masked;
     });
@@ -534,6 +574,9 @@
   let ghPat = $state(getPat());
   let publishing = $state(false);
   let publishMsg = $state("");
+  // Whether a token is currently stored on this device — surfaced so the manager
+  // can confirm at a glance that it persisted (it lives in localStorage).
+  let patSaved = $state(!!getPat());
 
   function saveGitHub() {
     setRepoTarget({
@@ -543,6 +586,17 @@
       branch: ghBranch.trim() || "main",
     });
     setPat(ghPat.trim());
+    patSaved = !!getPat();
+  }
+
+  /** Persist the token as soon as the field loses focus, so it can't be lost by
+   *  forgetting to press Save. Never clears a stored token on an empty field. */
+  function persistPatOnBlur() {
+    const v = ghPat.trim();
+    if (v && v !== getPat()) {
+      setPat(v);
+      patSaved = true;
+    }
   }
 
   async function publishToGitHub() {
@@ -784,8 +838,25 @@
           {/if}
           <label class="chk" style="margin-top:4px">
             <input type="checkbox" bind:checked={ev.replacesDay} />
-            Replace the normal schedule that day
+            All-day event (replaces the day's schedule)
           </label>
+          <div class="crow" style="margin-top:4px">
+            <label class="clabel" for="ev-leave-{i}" style="margin:0">Counts as leave</label>
+            <select id="ev-leave-{i}" class="ctime" bind:value={ev.leaveType}>
+              <option value="">No — normal appointment</option>
+              <option value="sick">Sick day</option>
+              <option value="holiday">Holiday day</option>
+            </select>
+          </div>
+          {#if ev.leaveType && ev.employeeIds.length === 0}
+            <p class="muted note" style="margin:0;color:#e57373">
+              Check the employee(s) above — leave only counts against a specific person.
+            </p>
+          {:else if ev.leaveType}
+            <p class="muted note" style="margin:0">
+              Counts as a {ev.leaveType} day for the checked employee(s). Also tick “All-day” to clear their schedule.
+            </p>
+          {/if}
         </div>
       {/each}
       <button class="add-link" onclick={addCompanyEvent}>+ Add appointment / event</button>
@@ -897,8 +968,12 @@
         aria-label="GitHub token"
         placeholder="github_pat_… (stored on this device)"
         bind:value={ghPat}
+        onblur={persistPatOnBlur}
       />
     </div>
+    <p class="muted note" style="margin:6px 0 0">
+      {patSaved ? "✓ A token is saved on this device." : "No token saved on this device yet."}
+    </p>
     <div class="actions" style="margin:10px 0 8px">
       <button onclick={saveGitHub}>Save token</button>
       <button class="primary" disabled={publishing} onclick={publishToGitHub}>
@@ -921,6 +996,48 @@
       <button class="primary" onclick={copy}>{copied ? "Copied ✓" : "Copy"}</button>
     </div>
     <textarea readonly rows="6" onclick={(e) => e.currentTarget.select()}>{json}</textarea>
+  </details>
+</div>
+
+<!-- Leave & time off: per-employee allowance vs. calendar leave used, by year. -->
+<div class="card">
+  <details>
+    <summary>Leave &amp; time off</summary>
+    <p class="muted note" style="margin-top:8px">
+      Days used are counted from calendar items marked as leave (add them under
+      <b>Schedules &amp; holidays</b> above, targeting the person). Set each person's
+      yearly allowance in their entry below.
+    </p>
+    <div class="fields">
+      <label for="leave-year">Year</label>
+      <select id="leave-year" bind:value={leaveYear}>
+        {#each leaveYears as y (y)}
+          <option value={y}>{y}</option>
+        {/each}
+      </select>
+    </div>
+    {#if leaveRows.length === 0}
+      <p class="muted" style="margin:10px 0 0">No employees yet.</p>
+    {:else}
+      <div class="leave-head">
+        <span class="lname"></span>
+        {#each LEAVE_TYPES as t (t.key)}<span>{t.label}</span>{/each}
+      </div>
+      {#each leaveRows as r (r.w.id)}
+        <div class="leave-row">
+          <span class="lname">{r.w.name}</span>
+          <span class="ltally" class:over={r.sick.remaining < 0}>
+            <b>{r.sick.used}/{r.sick.allotted}</b>
+            <small>{r.sick.remaining} left</small>
+          </span>
+          <span class="ltally" class:over={r.holiday.remaining < 0}>
+            <b>{r.holiday.used}/{r.holiday.allotted}</b>
+            <small>{r.holiday.remaining} left</small>
+          </span>
+        </div>
+      {/each}
+      <p class="muted note" style="margin:10px 0 0">Shown as used/allotted. Negative “left” means over the allowance.</p>
+    {/if}
   </details>
 </div>
 
@@ -1000,6 +1117,22 @@
       <input id="w-email" type="text" placeholder="name@company.com" bind:value={fEmail} />
       <label for="w-phone">Phone</label>
       <input id="w-phone" type="text" placeholder="555-123-4567" bind:value={fPhone} />
+
+      <div class="sublabel">
+        Leave allowance
+        <span class="muted" style="font-weight:400">· whole days per year</span>
+      </div>
+      <div class="mults">
+        <div>
+          <label for="w-sick" style="margin-top:0">Sick days</label>
+          <input id="w-sick" type="number" inputmode="numeric" min="0" placeholder="0" bind:value={fSick} />
+        </div>
+        <div>
+          <label for="w-holiday" style="margin-top:0">Holiday days</label>
+          <input id="w-holiday" type="number" inputmode="numeric" min="0" placeholder="0" bind:value={fHoliday} />
+        </div>
+      </div>
+
       <div class="row-actions">
         <button onclick={() => (mode = null)}>Cancel</button>
         <button class="primary" disabled={!fName.trim()} onclick={saveEmployee}>
@@ -1148,6 +1281,53 @@
     margin-top: 6px;
     align-self: flex-start;
     font-size: 0.85rem;
+  }
+  /* Leave summary: name column + one tally column per leave type. */
+  .leave-head,
+  .leave-row {
+    display: grid;
+    grid-template-columns: 1fr 88px 88px;
+    align-items: center;
+    gap: 8px;
+  }
+  .leave-head {
+    margin-top: 10px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .leave-head span:not(.lname),
+  .ltally {
+    text-align: right;
+  }
+  .leave-row {
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .leave-row:last-of-type {
+    border-bottom: none;
+  }
+  .lname {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ltally {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+  }
+  .ltally small {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .ltally.over b,
+  .ltally.over small {
+    color: #e57373;
   }
   .form {
     margin-top: 14px;

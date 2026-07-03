@@ -42,6 +42,16 @@
   const saved = savedPassword();
   const canBiometric = isBiometricSupported() && hasBiometric() && !!saved;
   const canEnrol = isBiometricSupported() && !hasBiometric();
+  // A manager token may already be saved on this device (from a previous setup).
+  // Surfaced in the setup view so a returning manager isn't misled into thinking
+  // the token was lost just because the field starts empty.
+  const patAlready = !!getPat();
+
+  /** A returning manager whose token is already saved just continues in. */
+  function continueAsManager() {
+    adminUnlock();
+    openWithoutGate();
+  }
 
   function go(next: View) {
     view = next;
@@ -157,7 +167,16 @@
       <button disabled={busy} onclick={() => go("main")} style="width:100%">Back</button>
     {:else if view === "setup"}
       <h3 class="gate-h">First-time setup</h3>
-      <p class="muted sub">Managers: sign in with your GitHub token to set up and publish this app.</p>
+      {#if patAlready}
+        <p class="muted sub">
+          ✓ A GitHub token is already saved on this device — you're set up. Continue, or paste a
+          new token below to replace it.
+        </p>
+        <button class="primary" onclick={continueAsManager} style="width:100%">Continue</button>
+        <div style="height:10px"></div>
+      {:else}
+        <p class="muted sub">Managers: sign in with your GitHub token to set up and publish this app.</p>
+      {/if}
 
       <div class="lbl-row">
         <label for="access-pat">Token</label>

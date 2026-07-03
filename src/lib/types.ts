@@ -86,6 +86,13 @@ export interface CalendarEvent {
    * people it applies to (a one-off "special day") instead of overlaying on top.
    */
   replacesDay?: boolean;
+  /**
+   * Marks this dated event as a day of leave that counts against the targeted
+   * employees' yearly allowance (see Employee.sickAllowance / holidayAllowance).
+   * Only counts for events with explicit `employeeIds`. Undefined = a normal
+   * appointment that doesn't consume any allowance. See lib/leave.ts.
+   */
+  leaveType?: "sick" | "holiday";
 }
 
 /** Per-date instance data: the task layer laid over the standing schedule. */
@@ -166,6 +173,13 @@ export interface Employee {
   sched?: string;
   /** Optional public profile links, label -> url (e.g. { linkedin, github }). */
   links?: Record<string, string>;
+  /**
+   * Yearly leave allowances in whole days, set by a manager. Days are "used" by
+   * dated leave events on the calendar (CalendarEvent.leaveType); used/remaining
+   * is derived, never stored. Absent/0 = no allowance configured. See lib/leave.ts.
+   */
+  sickAllowance?: number;
+  holidayAllowance?: number;
 }
 
 /** Publicly-postable company details shown at the top of the HR tab. */

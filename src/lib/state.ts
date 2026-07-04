@@ -70,6 +70,35 @@ export function setMyEmployeeId(id: string | undefined): void {
   });
 }
 
+// ---- Break reminders -------------------------------------------------------
+
+/** Default break reminders if a saved state predates the field. */
+function ensureBreakReminder(s: AppState): NonNullable<AppState["settings"]["breakReminder"]> {
+  return (s.settings.breakReminder ??= { enabled: false, everyMin: 20, messages: [] });
+}
+
+export function setBreakReminderEnabled(enabled: boolean): void {
+  update((s) => {
+    ensureBreakReminder(s).enabled = enabled;
+  });
+}
+
+export function setBreakReminderEvery(everyMin: number): void {
+  update((s) => {
+    if (everyMin > 0) ensureBreakReminder(s).everyMin = everyMin;
+  });
+}
+
+/** Replace the rotating message list from raw text (one message per line). */
+export function setBreakReminderMessages(text: string): void {
+  update((s) => {
+    ensureBreakReminder(s).messages = text
+      .split("\n")
+      .map((m) => m.trim())
+      .filter(Boolean);
+  });
+}
+
 // ---- Personal off-hours schedule -------------------------------------------
 
 export function setPersonalEnabled(enabled: boolean): void {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { state as appState } from "./lib/state";
   import { readShareFromHash } from "./lib/share";
-  import { startWebScheduler } from "./lib/notify";
+  import { startWebScheduler, startBreakReminders } from "./lib/notify";
   import { startConfigSync, configUpdated, orgConfig, configReady } from "./lib/config";
   import { unlocked, savedPassword, unlock, openWithoutGate } from "./lib/access";
   import { isBiometricSupported, hasBiometric } from "./lib/biometric";
@@ -71,6 +71,14 @@
       template: alarmDayTemplate($appState, $orgConfig, new Date()),
     }))
   );
+
+  // Periodic break reminders (stretch / water). Restart when the user toggles
+  // them or changes the interval; each tick reads live state for the messages.
+  $effect(() => {
+    $appState.settings.breakReminder?.enabled;
+    $appState.settings.breakReminder?.everyMin;
+    return startBreakReminders(() => get(appState));
+  });
 
   // Keep the public company directory (config.json) fresh across devices.
   $effect(() => startConfigSync());

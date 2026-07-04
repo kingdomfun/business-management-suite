@@ -1,3 +1,4 @@
+import { writable } from "svelte/store";
 import type { AppState, ScheduleTemplate } from "./types";
 import { nowView, alarmTimesFor, toMinutes } from "./schedule";
 import { PERSONAL_TEMPLATE_ID } from "./templates";
@@ -140,6 +141,66 @@ export function startWebScheduler(getActive: () => ActiveSchedule): () => void {
 export function stopWebScheduler(): void {
   if (webTimer) clearTimeout(webTimer);
   webTimer = null;
+}
+
+// ---- Break reminders -------------------------------------------------------
+//   A lightweight periodic nudge ("Time to stretch", "Remember to drink water")
+//   that rotates through the user's messages, surfaces on the Schedule tab via
+//   `breakMessage`, and chimes — every N minutes during Focus hours.
+
+/** The current break-reminder message to show on the Schedule tab, or null. */
+export const breakMessage = writable<string | null>(null);
+
+let breakTimer: ReturnType<typeof setInterval> | null = null;
+let breakClear: ReturnType<typeof setTimeout> | null = null;
+let breakIdx = 0;
+
+/** True during the user's Focus hours (so reminders don't fire overnight). */
+function withinFocusHours(s: AppState, now: Date): boolean {
+  const { start, end } = s.settings.activeHours;
+  const h = now.getHours();
+  return h >= start && h < end;
+}
+
+function fireBreakReminder(getState: () => AppState): void {
+  const s = getState();
+  const br = s.settings.breakReminder;
+  if (!br?.enabled) return;
+  const msgs = br.messages.map((m) => m.trim()).filter(Boolean);
+  if (msgs.length === 0) return;
+  if (!withinFocusHours(s, new Date())) return;
+  const msg = msgs[breakIdx % msgs.length];
+  breakIdx++;
+  breakMessage.set(msg);
+  playChime(s.settings.sound);
+  if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    new Notification("Break reminder", { body: msg, tag: "break-reminder" });
+  }
+  // Auto-dismiss the in-app banner after a minute if the user doesn't.
+  if (breakClear) clearTimeout(breakClear);
+  breakClear = setTimeout(() => breakMessage.set(null), 60_000);
+}
+
+/**
+ * Start (or restart) the periodic break-reminder timer. Reads live state each
+ * tick, so toggling the setting off between ticks simply produces no-op ticks.
+ * Returns a stop function.
+ */
+export function startBreakReminders(getState: () => AppState): () => void {
+  stopBreakReminders();
+  const br = getState().settings.breakReminder;
+  if (!br?.enabled) return stopBreakReminders;
+  const every = Math.max(1, Math.round(br.everyMin || 20));
+  breakTimer = setInterval(() => fireBreakReminder(getState), every * MS_PER_MIN);
+  return stopBreakReminders;
+}
+
+export function stopBreakReminders(): void {
+  if (breakTimer) clearInterval(breakTimer);
+  if (breakClear) clearTimeout(breakClear);
+  breakTimer = null;
+  breakClear = null;
+  breakMessage.set(null);
 }
 
 // ---- Test alert ------------------------------------------------------------

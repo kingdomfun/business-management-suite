@@ -4,6 +4,7 @@
   import { dayTemplate, PERSONAL_TEMPLATE_ID } from "../lib/templates";
   import { nowView, dateKey, displayLabel, nextDay, formatTime, findHoliday } from "../lib/schedule";
   import { isWakeLockSupported } from "../lib/wakelock";
+  import { breakMessage } from "../lib/notify";
   import { focus } from "../lib/focus";
   import Checklist from "./Checklist.svelte";
   import Appointments from "./Appointments.svelte";
@@ -69,6 +70,13 @@
     return `${min}m left`;
   }
 </script>
+
+{#if $breakMessage}
+  <div class="card break-card" role="status">
+    <span class="break-msg">{$breakMessage}</span>
+    <button class="break-dismiss" aria-label="Dismiss reminder" onclick={() => breakMessage.set(null)}>✕</button>
+  </div>
+{/if}
 
 {#if holiday}
   <div class="card holiday-card">
@@ -178,6 +186,32 @@
   }
   .holiday-card p {
     margin: 6px 0 0;
+  }
+  .break-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+  }
+  .break-msg {
+    flex: 1;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .break-dismiss {
+    flex: none;
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0.7;
+  }
+  .break-dismiss:hover {
+    opacity: 1;
   }
   .pill {
     display: inline-block;

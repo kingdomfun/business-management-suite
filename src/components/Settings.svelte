@@ -11,6 +11,9 @@
     removePersonalBlock,
     setWakeAlarmEnabled,
     setWakeAlarmTime,
+    setBreakReminderEnabled,
+    setBreakReminderEvery,
+    setBreakReminderMessages,
   } from "../lib/state";
   import { testAlert, requestPermission } from "../lib/notify";
   import { hasBiometric, clearBiometric } from "../lib/biometric";
@@ -59,6 +62,8 @@
 
   const HOURS = Array.from({ length: 24 }, (_, h) => h);
   const fmtHour = (h: number) => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
+
+  const BREAK_INTERVALS = [10, 15, 20, 30, 45, 60, 90, 120];
 </script>
 
 <div class="card">
@@ -256,6 +261,47 @@
       </select>
     </div>
   </div>
+
+  <div class="set-row">
+    <div class="set-label">
+      <div>Break reminders</div>
+      <div class="muted hint">A rotating nudge on the Schedule tab during Focus hours</div>
+    </div>
+    <div class="set-ctl">
+      {#if $appState.settings.breakReminder?.enabled}
+        <select
+          aria-label="Break interval"
+          value={$appState.settings.breakReminder?.everyMin ?? 20}
+          onchange={(e) => setBreakReminderEvery(+e.currentTarget.value)}
+        >
+          {#each BREAK_INTERVALS as m}<option value={m}>every {m} min</option>{/each}
+        </select>
+      {/if}
+      <button
+        class="toggle"
+        class:on={$appState.settings.breakReminder?.enabled}
+        role="switch"
+        aria-checked={$appState.settings.breakReminder?.enabled ?? false}
+        aria-label="Enable break reminders"
+        onclick={() => setBreakReminderEnabled(!$appState.settings.breakReminder?.enabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
+  </div>
+
+  {#if $appState.settings.breakReminder?.enabled}
+    <label for="break-messages" class="muted hint" style="display:block;margin-bottom:4px">
+      Messages (one per line — they rotate in order)
+    </label>
+    <textarea
+      id="break-messages"
+      rows="3"
+      placeholder="Time to stretch&#10;Remember to drink water"
+      value={($appState.settings.breakReminder?.messages ?? []).join("\n")}
+      onchange={(e) => setBreakReminderMessages(e.currentTarget.value)}
+    ></textarea>
+  {/if}
 </div>
 
 {#if $appState.manage.signedIn}

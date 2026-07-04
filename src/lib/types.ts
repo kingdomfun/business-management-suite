@@ -111,6 +111,13 @@ export interface Settings {
   activeHours: { start: number; end: number }; // hours 0-23, inclusive start, inclusive end
   alertStyle: AlertStyle;
   sound: string;
+  /**
+   * Optional periodic break reminders. When enabled, a rotating message
+   * (e.g. "Time to stretch", "Remember to drink water") surfaces on the
+   * Schedule tab — and chimes — every `everyMin` minutes during Focus hours.
+   * Optional so older saved states parse.
+   */
+  breakReminder?: { enabled: boolean; everyMin: number; messages: string[] };
 }
 
 /**

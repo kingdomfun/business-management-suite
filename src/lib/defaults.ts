@@ -31,6 +31,13 @@ export function defaultState(): AppState {
       activeHours: { start: 9, end: 17 }, // 9 AM–5 PM; covers the standing schedule
       alertStyle: "persistent",
       sound: "chime",
+      // Off by default; when on, a rotating nudge appears on the Schedule tab
+      // every 20 min during Focus hours. Edit the messages in Settings → Alerts.
+      breakReminder: {
+        enabled: false,
+        everyMin: 20,
+        messages: ["Time to stretch 🧘", "Remember to drink water 💧", "Rest your eyes — look far away for 20s 👀"],
+      },
     },
     manage: { signedIn: false },
   };

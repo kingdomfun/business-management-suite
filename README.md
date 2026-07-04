@@ -1,4 +1,4 @@
-[![Deploy to GitHub Pages](https://github.com/TolinSimpson/business-management-suite/actions/workflows/deploy.yml/badge.svg)](https://github.com/TolinSimpson/business-management-suite/actions/workflows/deploy.yml)
+[![Deploy to GitHub Pages](https://github.com/kingdomfun/business-management-suite/actions/workflows/deploy.yml/badge.svg)](https://github.com/kingdomfun/business-management-suite/actions/workflows/deploy.yml)
 
 # Business Management Suite
 
